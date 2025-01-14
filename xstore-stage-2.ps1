@@ -1,3 +1,4 @@
+#v1.04 140125 --- Cleanup for github upload.
 #v1.03 130624 --- Added configuration for cashdraws connected to IP printer kick ports.
 #v1.03 110423 --- Cleaned Up Schedualed Tasks.
 #v1.02 210323 --- Updated logging function.
@@ -18,7 +19,7 @@
 #v0.09 --- Implement changing of ip printer address in PCS.properties.
 #v0.08 --- Implement Logical Port number reading and updating in jpos.
 #v0.07 --- Implemented the rest of schedualed tasks.
-#v0.06 --- Implemented adding denby sql admin group to local database.
+#v0.06 --- Implemented adding $brand sql admin group to local database.
 #v0.06 --- Implement Auto logon, new IP printer mechanism, start of implementing schedualed tasks.
 #v0.05 --- Implement store number change.
 #v0.04 --- Implement changing config path to specifiy which config is used.
@@ -33,11 +34,11 @@ Set-Location $PSScriptRoot -Verbose
 #Generating run ID for multiple run logging.
 $runid = get-date -format "HH-mm-ss"
 
-#xstore stage 2 updater
-$s2configpath = ".\.env";
+#Location of Options file, this must be XML with structure as intimated below.
+$s2configpath = ".\env.xml";
 $s2config = [xml](Get-Content $s2configpath);
 $logDIR = ".\logs";
-$loggingpath = "$logDIR\v20-stage-2-log-RUNID_$runid.txt";
+$loggingpath = "$logDIR\v20-stage-2-log-RUNID_$runid.log";
 
 #Printing Config
 #---- Program Config
@@ -48,17 +49,24 @@ $pcsproppath = $s2config.TillConfig.Program.pcsproploc;
 $sqlfwreq = $s2config.TillConfig.Program.addsqlremoteaccess;
 $xstoresysprop = $s2config.TillConfig.Program.xstoresysproperties;
 $xstoresyspropmob = $s2config.TillConfig.Program.xstoresyspropertiesMOB;
-$dvtdbuserpass = $s2config.TillConfig.Program.dvtuserpass;
-$sadbuserpass = $s2config.TillConfig.Program.sauserpass;
 $jdkver = $s2config.TillConfig.Program.jdkver;
 $updateOcKs = $s2config.TillConfig.Program.updateOciusKeystore;
-$brand = $s2config.TillConfig.Program.brand;
+#----Brand Configuration
+$changeBrand = $s2config.TillConfig.brand.changeBrand;
+$brand = $s2config.TillConfig.brand.brand;
+$brandRcptEml = $s2config.TillConfig.brand.brandRcptEmail;
+#----Database Configuration
+$dbAdminGroup = $s2config.TillConfig.program.dbManagementADgroup;
+$dbAdminDomain = $s2config.TillConfig.program.dbManagementADdomain;
+$dvtdbuserpass = $s2config.TillConfig.Program.dvtuserpass;
+$dbAdminUserName = $s2config.TillConfig.Program.dbAdminUname;
+$dbAdminUserPass = $s2config.TillConfig.Program.dbAdminUPass;
 #---- Store Number Config
 $changestnum = $s2config.TillConfig.storenumber.changestorenum;
 $newstorenum = $s2config.TillConfig.storenumber.newstorenumis;
 $xstorebaseconfigloc = $s2config.TillConfig.Program.xstorebaseconf;
 $xenvironbaseconfigloc = $s2config.TillConfig.Program.xenvirobaseconf;
-#---- Peter Requests
+#---- PRID Configurations
 $pridcnreq = $s2config.TillConfig.peterrequests.pridchange;
 $pridmaploc = $s2config.TillConfig.peterrequests.pridmaploc;
 #---- Auto Logon Config
@@ -86,9 +94,6 @@ $pedip2 = $s2config.TillConfig.peds.pedip2;
 $pedip3 = $s2config.TillConfig.peds.pedip3;
 $pedip4 = $s2config.TillConfig.peds.pedip4;
 $pedip5 = $s2config.TillConfig.peds.pedip5;
-#----PED Config
-$dbAdminGroup = $s2config.TillConfig.program.dbManagementADgroup;
-$dbAdminDomain = $s2config.TillConfig.program.dbManagementADdomain;
 
 #logical names
 #--- hwconfigxml
@@ -118,12 +123,14 @@ $pathpcsprop = ($pcsproppath -ireplace $filenamepcs, "")
 $pathpcsprop = $pathpcsprop.TrimEnd("\")
 
 #what config gets edited?
-$corrdirUSBServ = 'terminalip'#usbprinter share server
+$corrdirUSBServ = 'terminalShare'; #usbprinter share server
 $corrdirIPrecpt = 'terminalip' #ip recipt printer
-$corrdirShareclient = 'terminalip'#xstore printer share client
+$corrdirShareclient = 'terminalShare'; #xstore printer share client
 $corrdirstdusb = 'terminal' #bog standard USB recipt printer
 
 # SQL that is ran to add configured administrator group to database.
+# Splatted because it needs to be modified to include the correct
+# username and domain.
 $xstoreAdminActions = @"
     USE [master]
     GO
@@ -160,12 +167,12 @@ Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CREATING SCRIPT DIRS <
 Write-Log "   "
 
 
-    Write-log " : Creating c:\Denby"
-    New-Item -ItemType Directory -Path c:\ -Name Denby -Force -ErrorAction SilentlyContinue
-    Write-log " : Creating c:\Denby\Scripts"
-    New-Item -ItemType Directory -Path c:\Denby -Name Scripts -Force -ErrorAction SilentlyContinue
-    Write-log " : Creating c:\Denby\Scripts\Logs"
-    New-Item -ItemType Directory -Path c:\Denby\Scripts -Name Logs -Force -ErrorAction SilentlyContinue
+    Write-log " : Creating c:\$brand"
+    New-Item -ItemType Directory -Path c:\ -Name $brand -Force -ErrorAction SilentlyContinue
+    Write-log " : Creating c:\$brand\Scripts"
+    New-Item -ItemType Directory -Path c:\$brand -Name Scripts -Force -ErrorAction SilentlyContinue
+    Write-log " : Creating c:\$brand\Scripts\Logs"
+    New-Item -ItemType Directory -Path c:\$brand\Scripts -Name Logs -Force -ErrorAction SilentlyContinue
 }
 
 #Get configuration for PCS.Properties
@@ -367,7 +374,7 @@ $xstoreanchors = @('C:\xstore\tmp\xstore.anchor','C:\xstore\tmp\dataserver.ancho
 
 }
 
-#Unpacks a the hardware folder of denby-config.jar ready for editing.
+#Unpacks a the hardware folder of $brand-config.jar ready for editing.
 function Test-Xstore-print-Req {
     
     #Clean up before Fresh Extraction.
@@ -405,7 +412,7 @@ Write-Log "   "
 Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CLEANING UP <<<"
 Write-Log "   "
 
-        $filesToDelete = @("$pathhw\hardware","$pathhw\version1","C:\installXstore.cmd","C:\Denby\Scripts\installXstore-WithRebootCheck.ps1","C:\retaildata","C:\Staging","C:\MININT", "C:\data-loader.exe","C:\Failures.html")
+        $filesToDelete = @("$pathhw\hardware","$pathhw\version1","C:\installXstore.cmd","C:\$brand\Scripts\installXstore-WithRebootCheck.ps1","C:\retaildata","C:\Staging","C:\MININT", "C:\data-loader.exe","C:\Failures.html")
 
         foreach($item in $filesToDelete){
                     Write-log " : Trying to clean up $item."
@@ -418,7 +425,7 @@ Write-Log "   "
         }
 }
 
-#re-compiles the Denby-config.jar once we have edited the files.
+#re-compiles the $brand-config.jar once we have edited the files.
 function Invoke-Repack-Config-Jar {
 Write-Log "   "
 Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ REPACKING THE JAR <<<"
@@ -426,7 +433,7 @@ Write-Log "   "
 
                     #Re-Pack hardware in to jar
                     if(test-path -Path "$pathhw\hardware"){
-                            #Packing modified files back in to denby-config.jar
+                            #Packing modified files back in to $brand-config.jar
                             Write-log " : Repacking Jar at $pathhw\hardware"
                             Start-Process 'Jar' -ArgumentList "-uf $filenamehw hardware/" -WorkingDirectory $pathhw
                             Start-Sleep 10
@@ -436,7 +443,7 @@ Write-Log "   "
                     
                     #Re-Pack version1 Folder in to Jar
                     if(test-path -Path "$pathhw\version1"){
-                            #Packing modified files back in to denby-config.jar
+                            #Packing modified files back in to $brand-config.jar
                             Write-log " : Repacking Jar at $pathhw\version1"
                             Start-Process 'Jar' -ArgumentList "-uf $filenamehw version1/" -WorkingDirectory $pathhw
                             Start-Sleep 10
@@ -456,7 +463,7 @@ Write-Log "   "
             }else{
             Write-Log " : $pathhw\hardware\$corrdirUSBServ does not exist, creating now."
             New-Item -ItemType Directory -Path "$pathhw\hardware" -Name "$corrdirUSBServ" -Force
-            Copy-Item -Path ".\dependencies\xml\mobile_config.xml" -Destination "$pathhw\hardware\$corrdirUSBServ\HardwareConfig.xml"
+            Copy-Item -Path ".\dependencies\xml\usb_share_config.xml" -Destination "$pathhw\hardware\$corrdirUSBServ\HardwareConfig.xml"
             }
 
             #Define the location of the correct configuration.
@@ -467,7 +474,7 @@ Write-Log "   "
             if($xmlfile -eq $null -or $xmlfile -eq ""){Write-Log " : Checking to see if the hardware config is empty."
 
                 Write-Log " : Hardware config is empty, copying over default to location."
-                    Copy-Item -Path '.\xml\mobile-default.xml' -Destination "$pathhw\hardware\$corrdirUSBServ" -Force
+                    Copy-Item -Path '.\xml\usb_share_config.xml' -Destination "$pathhw\hardware\$corrdirUSBServ" -Force
                 }
 
                                         #creating element then moving to top of <hardware>
@@ -505,13 +512,11 @@ Write-Log "   "
 
                                                                             #can mess up multipull runs if we dont despose of thease variables.
                                                                             Remove-Variable devnode,devnode2,enablednode,enablednode2,namenode,namenode2,codnode,codnode2,sharenode,rportnode,xmlfile
-                                                                            $global:printshareconfigured = 'Yes'
 
                         #Add the firewall rule if requested,
                         if($fwreq -ieq "y" -or $fwreq -ieq "yes"){
                 
                             New-NetFirewallRule -DisplayName "Xstore Printer Sharing IN" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort $psport -Protocol TCP
-                                
                                 
                                 $ConfiguredFWrules = (Get-NetFirewallRule -DisplayName *).DisplayName
                                 if($ConfiguredFWrules -icontains "Xstore Printer Sharing IN"){
@@ -883,12 +888,12 @@ Write-Log "   "
                         #Add the firewall rule if requested,
                         if($sqlfwreq -ieq "y" -or $fwreq -ieq "yes"){
                 
-                            New-NetFirewallRule -DisplayName "Denby SQL Remote Access" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort 1433-1434 -Protocol TCP
+                            New-NetFirewallRule -DisplayName "$brand SQL Remote Access" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort 1433-1434 -Protocol TCP
                             
                             Start-Sleep -Seconds 15
 
                                 $ConfiguredFWrules = (Get-NetFirewallRule -DisplayName *).DisplayName
-                                if($ConfiguredFWrules -icontains "Denby SQL Remote Access"){
+                                if($ConfiguredFWrules -icontains "$brand SQL Remote Access"){
                                     Write-Log " : Firewall rule for Remote SQL access was added (port $psport, TCP) - CONFIRMED."
                                     $global:sqlremotefw = 'Yes'
                                 }else{
@@ -924,7 +929,7 @@ if($lastTakenDate -gt (Get-Date).AddDays(-1)){
 
     $restdate = Get-date -Format 'ddMMyy'
     Write-Log " : Generating Windows System Restore point."
-    Checkpoint-Computer -Description "Before-Denby-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
+    Checkpoint-Computer -Description "Before-$brand-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
 
     Write-Log " : Sleeping for 45 seconds."
     Start-Sleep -Seconds 45
@@ -933,7 +938,7 @@ if($lastTakenDate -gt (Get-Date).AddDays(-1)){
 
     $restdate = Get-date -Format 'ddMMyy'
     Write-Log " : Generating Windows System Restore point."
-    Checkpoint-Computer -Description "Before-Denby-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
+    Checkpoint-Computer -Description "Before-$brand-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
 
     Write-Log " : Sleeping for 45 seconds."
     Start-Sleep -Seconds 45
@@ -944,7 +949,7 @@ if($lastTakenDate -gt (Get-Date).AddDays(-1)){
     Write-Log " : Last restore point status = $lastreststatus"
 
     $checkforresttore = (Get-ComputerRestorePoint).Description
-    if($checkforresttore -icontains "Before-Denby-Xstore-Stage2-$restdate"){
+    if($checkforresttore -icontains "Before-$brand-Xstore-Stage2-$restdate"){
             Write-Log " : SUCCESS, the restore point has been taken."
         }elseif($true -eq $cannotTakeSS){
             Write-Log " : WARN, snapshot cannot be taken, a restore point has allready been taken."
@@ -1094,67 +1099,67 @@ Write-Log "   "
         }
 }
 
-#Add Denby Schedualed Tasks
+#Add Schedualed Tasks
 Function add-sched-tasks {
 Write-Log "   "
 Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ADDING SCHEDUALED TASKS <<<"
 Write-Log "   "
     
-    #Denby windows update management --- WILL RUN AT 9:30PM every tuesday
-    $taskName1 = 'denbyWindowsUpdateController'
+    # Windows Update Management
+    $taskName1 = "$brand`WindowsUpdateController"
     $taskDesc1 = 'Will run a script that will update windows if the host name is in a shared txt file on the sdrive.'
-    $action1 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "auto-windows-update-v20.ps1"' -WorkingDirectory 'C:\Denby\Scripts\'
+    $action1 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "auto-windows-update-v20.ps1"' -WorkingDirectory "C:\$brand\Scripts\"
     $trigger1 =  New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek Tuesday -At 9:30PM
 
-    #Database Backup Script only on v20 Servers --- WILL RUN AT a hour between 2am and 4am
+    #Database Backup Script only on v20 Servers
     $backupTimeHr= '{0:d2}' -f (Get-Random -Minimum 2 -Maximum 4)
     $backupTimeMM= '{0:d2}' -f (Get-Random -Minimum 1 -Maximum 59)
     $backupTime = [string]$backupTimeHr + ":" + [string]$backupTimeMM
-    $taskName2 = 'denbyXstoreDatabaseBackup'
+    $taskName2 = "$brand`XstoreDatabaseBackup"
     $taskDesc2 = 'Will run a script that will backup the store database to headoffice.'
-    $action2 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "backup-xstore-db.ps1"' -WorkingDirectory 'C:\Denby\Scripts'
+    $action2 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "backup-xstore-db.ps1"' -WorkingDirectory "C:\$brand\Scripts"
     $trigger2 =  New-ScheduledTaskTrigger -Daily -At $backupTime
 
-    #xStore Restart --- WILL RUN AT 6am every monday.
-    $taskName3 = 'denbyXstoreRestart'
+    #xStore Restart
+    $taskName3 = "$brand`XstoreRestart"
     $taskDesc3 = 'Will run a script that will restart the xstore system.'
-    $action3 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xstore-shutdown-restart.ps1"' -WorkingDirectory 'C:\Denby\Scripts'
+    $action3 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xstore-shutdown-restart.ps1"' -WorkingDirectory "C:\$brand\Scripts"
     $trigger3 =  New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek monday -At 6am
 
     #Launch xStore at Logon.
-    $taskName4 = 'denbyLaunchXstoreAtLogon'
+    $taskName4 = "$brand`LaunchXstoreAtLogon"
     $taskDesc4 = 'This will launch xStore at logon of any user using the VBS file C:\environment\start_eng.vbs.'
     $action4 = New-ScheduledTaskAction -Execute 'Cscript.exe' -Argument 'C:\environment\start_eng.vbs //nologo' -WorkingDirectory 'C:\Windows\System32'
     $trigger4 =  New-ScheduledTaskTrigger -AtLogOn
 
     #Update the scripts at 7am every day.
-    $taskName5 = 'denbyScriptUpdater'
-    $taskDesc5 = 'This script will update all other scripts within the denby scripts folder.'
-    $action5 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xStore-DenbyScriptUpdater.ps1"' -WorkingDirectory 'C:\Denby'
+    $taskName5 = "$brand`ScriptUpdater"
+    $taskDesc5 = "This script will update all other scripts within the $brand scripts folder."
+    $action5 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xStore-ScriptUpdater.ps1"' -WorkingDirectory "C:\$brand"
     $trigger5 =  New-ScheduledTaskTrigger -Daily -At 7am 
 
     $tasks = @("$taskName1","$taskName2", "$taskName3", "$taskName4", "$taskName5")
     
     #add tasks
     Write-Log ' : Adding Windows Updater to Sched Tasks.'
-    Register-ScheduledTask -Action $action1 -Trigger $trigger1 -TaskName $taskName1 -Description $taskDesc1 -TaskPath 'Denby' -RunLevel Highest -Force
+    Register-ScheduledTask -Action $action1 -Trigger $trigger1 -TaskName $taskName1 -Description $taskDesc1 -TaskPath "$brand" -RunLevel Highest -Force
 
         #test to see if the host is a instore server.
-        if(test-path -Path "C:\Denby\Scripts\backup-xstore-db.ps1"){
+        if(test-path -Path "C:\$brand\Scripts\backup-xstore-db.ps1"){
             Write-Log ' : Adding DB Backup to Sched Tasks.'
-            Register-ScheduledTask -Action $action2 -Trigger $trigger2 -TaskName $taskName2 -Description $taskDesc2 -TaskPath 'Denby' -RunLevel Highest -Force
+            Register-ScheduledTask -Action $action2 -Trigger $trigger2 -TaskName $taskName2 -Description $taskDesc2 -TaskPath "$brand" -RunLevel Highest -Force
         }else{
             write-Log " : This does not seem to be a server, not adding DB Backup Script to Schedualed Tasks"
         }
 
     Write-Log ' : Adding restarter to Sched Tasks.'
-    Register-ScheduledTask -Action $action3 -Trigger $trigger3 -TaskName $taskName3 -Description $taskDesc3 -TaskPath 'Denby' -RunLevel Highest -Force
+    Register-ScheduledTask -Action $action3 -Trigger $trigger3 -TaskName $taskName3 -Description $taskDesc3 -TaskPath "$brand" -RunLevel Highest -Force
 
     Write-Log ' : Adding xStore launch at startup to Sched Tasks.'
-    Register-ScheduledTask -Action $action4 -Trigger $trigger4 -TaskName $taskName4 -Description $taskDesc4 -TaskPath 'Denby' -Force
+    Register-ScheduledTask -Action $action4 -Trigger $trigger4 -TaskName $taskName4 -Description $taskDesc4 -TaskPath "$brand" -Force
 
     Write-Log ' : Adding script updater to schedualed tasks.'
-    Register-ScheduledTask -Action $action5 -Trigger $trigger5 -TaskName $taskName5 -Description $taskDesc5 -TaskPath 'Denby' -Force
+    Register-ScheduledTask -Action $action5 -Trigger $trigger5 -TaskName $taskName5 -Description $taskDesc5 -TaskPath "$brand" -Force
 
     Start-Sleep -Seconds 20
         Foreach($task in $tasks){
@@ -1208,30 +1213,30 @@ Function set-AutoLogon {
             }
 
             #attempting to set up autologn with autologon64.exe
-            Start-Process -FilePath 'C:\Denby\Autologon64.exe' -ArgumentList "/accepteula", $env:USERNAME, $domain, $autologonpass -wait
+            Start-Process -FilePath "C:\$brand\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $autologonpass -wait
     
 }
 
-#Add denby users to db administrators
-Function add-denbyto-sql {
+#Add users to db administrators
+Function add-dbadmin-to-sql {
 Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SETTING DENBY AS SQL ADMIN <<<"
+Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SETTING $brand AS SQL ADMIN <<<"
 Write-Log "   "
 
     $sqlserversrunning = (Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count
     Push-Location
 
     If($sqlserversrunning -gt '0'){
-        $sqladminspre = (Invoke-Sqlcmd -U sa -P $sadbuserpass -InputFile ".\dependencies\sql\admintest.sql").login
+        $sqladminspre = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
             if($sqladminspre -icontains "$dbAdminDomain\$dbAdminGroup"){
                 Pop-Location
                 Write-Log " : WARN, SQL server allready contains $dbAdminDomain\$dbAdminGroup, doing nothing."
             }else{
                     Write-Log " : Detected SQL server running, adding $dbAdminDomain\$dbAdminGroup to remote users."
-                    Invoke-Sqlcmd -U 'sa' -P $sadbuserpass -Query $xstoreAdminActions | out-null
+                    Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $xstoreAdminActions | out-null
                     Pop-Location
                     Start-Sleep -Seconds 20
-                    $sqladminspost = (Invoke-Sqlcmd -U sa -P $sadbuserpass -InputFile ".\dependencies\sql\admintest.sql").login
+                    $sqladminspost = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
                             if($sqladminspost -icontains "$dbAdminDomain\$dbAdminGroup"){
                                 Pop-Location
                                 Write-Log " : Confirming that $dbAdminGroup has been added to the users that can logon remotely."
@@ -1300,127 +1305,126 @@ Write-Log "   "
                 Write-log " : Backing up base-xstore.properties to $confpathbasedir\base-xstore.properties.cnfedit.bak.BRAND.$runid"
                 Copy-Item -Path $xstorebaseconfigloc -Destination "$confpathbasedir\base-xstore.properties.cnfedit.bak.BRAND.$runid" -Force
 
-                                
-                Write-log " : Configuring xstore-baseconfig configuration path."
-                $confpathcont = Get-Content -Path $xstorebaseconfigloc   
-                    
-                $ai = 0
-                    foreach($line in $confpathcont){
-                        $ai += 1
-                        if($line -ilike 'xstore.config.path.global.extensions*'){
-                            Write-log " : Line($ai) is holding the config.path.global.extensions."
-                                $arrno = 0
-                                        $linearr = @($line.Split(':'))
-                                            foreach($seg in $linearr){
-                                                $arrno += 1
-                                                        if($seg -ilike "brand/*"){
-                                                            Write-log " : Replacing $seg with $brand."
-                                                            $brand = $brand.Trim()
-                                                            $seg = ""
-                                                            $seg = "brand/$brand"
-
-                                                            $linearr[$arrno -1] = $seg
-                                                            $line = [string]$linearr -replace " ", ':'
-
-                                                            Write-log " : ($line) will now be written to config file"
-                                                            $confpathcont[$ai -1] = $line
-                                                            $confpathcont | Set-Content $xstorebaseconfigloc
-                                                        }
-                                            }
-                        }
-                    }
-
-                    #Edit Mobile Line
-                    $confpathcont = Get-Content -Path $xstorebaseconfigloc  
+                if($changeBrand -ilike "*y"){
+                
+                    Write-log " : Configuring xstore-baseconfig configuration path for brand change to $brand."
+                    $confpathcont = Get-Content -Path $xstorebaseconfigloc   
+                        
                     $ai = 0
-                    foreach($line in $confpathcont){
-                        $ai += 1
-                        if($line -ilike 'mobile.xstore.config.path.global.extensions*'){
-                            Write-log " : Line($ai) is holding the mobile.config.path.global.extensions."
-                                $arrno = 0
-                                        $linearr = @($line.Split(':'))
-                                            foreach($seg in $linearr){
-                                                $arrno += 1
-                                                        if($seg -ilike "brand/*"){
-                                                            Write-log " : Replacing $seg with $brand."
-                                                            $brand = $brand.Trim()
-                                                            $seg = ""
-                                                            $seg = "brand/$brand"
+                        foreach($line in $confpathcont){
+                            $ai += 1
+                            if($line -ilike "xstore.config.path.global.extensions*"){
+                                Write-log " : Line($ai) is holding the config.path.global.extensions."
+                                    $arrno = 0
+                                            $linearr = @($line.Split(':'))
+                                                foreach($seg in $linearr){
+                                                    $arrno += 1
+                                                            if($seg -ilike "brand/*"){
+                                                                Write-log " : Replacing $seg with $brand."
+                                                                $brand = $brand.Trim()
+                                                                $brand = $brand.ToLower()
+                                                                $seg = ""
+                                                                $seg = "brand/$brand"
 
-                                                            $linearr[$arrno -1] = $seg
-                                                            $line = [string]$linearr -replace " ", ':'
+                                                                $linearr[$arrno -1] = $seg
+                                                                $line = [string]$linearr -replace " ", ':'
 
-                                                            Write-log " : ($line) will now be written to config file"
-                                                            $confpathcont[$ai -1] = $line
-                                                            $confpathcont | Set-Content $xstorebaseconfigloc
-                                                        }
-                                            }
+                                                                Write-log " : ($line) will now be written to config file."
+                                                                $confpathcont[$ai -1] = $line
+                                                                $confpathcont | Set-Content $xstorebaseconfigloc
+                                                            }
+                                                }
+                            }
                         }
-                    }
 
-                    # Burleigh Specific Changes
-                    if($brand -ilike "bur*"){
+                        #Edit Mobile Line
+                        $confpathcont = Get-Content -Path $xstorebaseconfigloc  
+                        $ai = 0
+                        foreach($line in $confpathcont){
+                            $ai += 1
+                            if($line -ilike "mobile.xstore.config.path.global.extensions*"){
+                                Write-log " : Line($ai) is holding the mobile.config.path.global.extensions."
+                                    $arrno = 0
+                                            $linearr = @($line.Split(':'))
+                                                foreach($seg in $linearr){
+                                                    $arrno += 1
+                                                            if($seg -ilike "brand/*"){
+                                                                Write-log " : Replacing $seg with $brand."
+                                                                $brand = $brand.Trim()
+                                                                $brand = $brand.ToLower()
+                                                                $seg = ""
+                                                                $seg = "brand/$brand"
 
-                                        Write-log " : Brand Burleigh detected, changing email receipt addresses."
-                                        
-                                        $rcptEmailbLL = 'xstorereceipts@burgessandleigh.co.uk'
-                                        # Edit receipt email address sender
-                                        $confpathcont = Get-Content -Path $xstorebaseconfigloc  
-                                        $ai = 0
-                                        foreach($line in $confpathcont){
-                                            $ai += 1
-                                            if($line -ilike 'dtv.email.default.sender*'){
-                                                Write-log " : Line($ai) is holding the dtv.email.default.sender."
-                                                    $arrno = 0
-                                                            $linearr = @($line.Split('='))
-                                                                foreach($seg in $linearr){
-                                                                    $arrno += 1
-                                                                            if($seg -ilike "*@*"){
-                                                                                Write-log " : Replacing $seg with $rcptEmailbLL."
-                                                                                $rcptEmailbLL = $rcptEmailbLL.Trim()
-                                                                                $seg = ""
-                                                                                $seg = $rcptEmailbLL
-                    
-                                                                                $linearr[$arrno -1] = $seg
-                                                                                $line = [string]$linearr -replace " ", '='
-                    
-                                                                                Write-log " : ($line) will now be written to config file"
-                                                                                $confpathcont[$ai -1] = $line
-                                                                                $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                            }
-                                                                }
+                                                                $linearr[$arrno -1] = $seg
+                                                                $line = [string]$linearr -replace " ", ':'
+
+                                                                Write-log " : ($line) will now be written to config file"
+                                                                $confpathcont[$ai -1] = $line
+                                                                $confpathcont | Set-Content $xstorebaseconfigloc
+                                                            }
+                                                }
+                            }
+                        }
+
+                                            # Setting Brand Receipt Emails
+                                            Write-log " : Changing email receipt addresses to $brandRcptEml."
+                                            
+                                            # Edit receipt email address sender
+                                            $confpathcont = Get-Content -Path $xstorebaseconfigloc  
+                                            $ai = 0
+                                            foreach($line in $confpathcont){
+                                                $ai += 1
+                                                if($line -ilike "dtv.email.default.sender*"){
+                                                    Write-log " : Line($ai) is holding the dtv.email.default.sender."
+                                                        $arrno = 0
+                                                                $linearr = @($line.Split('='))
+                                                                    foreach($seg in $linearr){
+                                                                        $arrno += 1
+                                                                                if($seg -ilike "*@*"){
+                                                                                    Write-log " : Replacing $seg with $brandRcptEml."
+                                                                                    $brandRcptEml = $brandRcptEml.Trim()
+                                                                                    $seg = ""
+                                                                                    $seg = $brandRcptEml
+                        
+                                                                                    $linearr[$arrno -1] = $seg
+                                                                                    $line = [string]$linearr -replace " ", '='
+                        
+                                                                                    Write-log " : ($line) will now be written to config file."
+                                                                                    $confpathcont[$ai -1] = $line
+                                                                                    $confpathcont | Set-Content $xstorebaseconfigloc
+                                                                                }
+                                                                    }
+                                                }
                                             }
-                                        }
 
-                                        # Edit receipt email address from
-                                        $confpathcont = Get-Content -Path $xstorebaseconfigloc  
-                                        $ai = 0
-                                        foreach($line in $confpathcont){
-                                            $ai += 1
-                                            if($line -ilike 'dtv.email.receipt.from*'){
-                                                Write-log " : Line($ai) is holding the dtv.email.receipt.from."
-                                                    $arrno = 0
-                                                            $linearr = @($line.Split('='))
-                                                                foreach($seg in $linearr){
-                                                                    $arrno += 1
-                                                                            if($seg -ilike "*@*"){
-                                                                                Write-log " : Replacing $seg with $rcptEmailbLL."
-                                                                                $rcptEmailbLL = $rcptEmailbLL.Trim()
-                                                                                $seg = ""
-                                                                                $seg = $rcptEmailbLL
-                    
-                                                                                $linearr[$arrno -1] = $seg
-                                                                                $line = [string]$linearr -replace " ", '='
-                    
-                                                                                Write-log " : ($line) will now be written to config file"
-                                                                                $confpathcont[$ai -1] = $line
-                                                                                $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                            }
-                                                                }
+                                            # Edit receipt email address from
+                                            $confpathcont = Get-Content -Path $xstorebaseconfigloc  
+                                            $ai = 0
+                                            foreach($line in $confpathcont){
+                                                $ai += 1
+                                                if($line -ilike "dtv.email.receipt.from*"){
+                                                    Write-log " : Line($ai) is holding the dtv.email.receipt.from."
+                                                        $arrno = 0
+                                                                $linearr = @($line.Split('='))
+                                                                    foreach($seg in $linearr){
+                                                                        $arrno += 1
+                                                                                if($seg -ilike "*@*"){
+                                                                                    Write-log " : Replacing $seg with $brandRcptEml."
+                                                                                    $brandRcptEml = $brandRcptEml.Trim()
+                                                                                    $seg = ""
+                                                                                    $seg = $brandRcptEml
+                        
+                                                                                    $linearr[$arrno -1] = $seg
+                                                                                    $line = [string]$linearr -replace " ", '='
+                        
+                                                                                    Write-log " : ($line) will now be written to config file."
+                                                                                    $confpathcont[$ai -1] = $line
+                                                                                    $confpathcont | Set-Content $xstorebaseconfigloc
+                                                                                }
+                                                                    }
+                                                }
                                             }
-                                        }
-                    }
-
+                                    }
 }
 
 # Start --------------------------------------------------------------------------------------------------------|
@@ -1493,7 +1497,7 @@ if($runyn -eq "y"){ Write-Log " : Yes to start received."
     #Final Bits for all runs
     Get-BrandChange
     Set-Remote-SQL-FWR
-    add-denbyto-sql
+    add-dbadmin-to-sql
     Invoke-Repack-Config-Jar
     Invoke-Cleanup
     Set-xstore-final

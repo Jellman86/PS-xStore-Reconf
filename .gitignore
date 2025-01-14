@@ -5,10 +5,12 @@
 .crt
 .pfx
 .jks
+.log
 
 #Specific Secrets
 prid_map.xml
 ocius.keystore
+env.xml
 
 #Paths
 **/ssl
