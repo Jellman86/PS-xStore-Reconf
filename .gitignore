@@ -8,3 +8,6 @@
 
 #Specific Secrets
 prid_map.xml
+
+#Paths
+dependencies/ssl
