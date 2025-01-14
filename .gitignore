@@ -8,6 +8,7 @@
 
 #Specific Secrets
 prid_map.xml
+ocius.keystore
 
 #Paths
 dependencies/ssl
