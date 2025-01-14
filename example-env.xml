@@ -24,6 +24,9 @@
 		<dbManagementADdomain>domain</dbManagementADdomain><!-- what is the domain suffix of the above group -->
 	</program>
 	<brand>
+
+        <!-- Brand Configuration -->
+
 		<changeBrand>N</changeBrand><!-- Do you want to change the brand? -->
 		<brand>ShopBrand</brand><!-- What brand is the till installed in -->
 		<brandRcptEmail>xstorereceipts@brand.co.uk</brandRcptEmail><!-- what is the brand receipt email? -->
