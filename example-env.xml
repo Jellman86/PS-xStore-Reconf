@@ -16,10 +16,10 @@
 		<addsqlremoteaccess>Y</addsqlremoteaccess><!-- Do you require remote access to this sql database? -->
 		<dvtuserpass>password</dvtuserpass><!--- What is the DVT Database User Password?-->
 		<jdkver>11.0.14</jdkver><!--- What is the JDK Version Installed?-->
-		<updateOciusKeystore>N</updateOciusKeystore><!-- Do you want to copy over the correct (NEW) Ocius.keystore? -->
+		<updateOciusKeystore>N</updateOciusKeystore><!-- Do you want to copy over a new Ocius.keystore? -->
 		<ipCashDrawHWConfPathName>terminalipcashdraw</ipCashDrawHWConfPathName><!-- What is the foldername for the ip cashdraw configuration path in brand-config.jar -->
-		<dbAdminUname>localdbadmin</dbAdminUname>
-		<sauserpass>password</sauserpass><!--- What is the SA Database User Password?-->
+		<dbAdminUname>localdbadmin</dbAdminUname><!--- What is the database admin User name?-->
+		<sauserpass>password</sauserpass><!--- What is the database admin User Password?-->
 		<dbManagementADgroup>G SQL Admins</dbManagementADgroup><!-- what group do you want to add to the database for management -->
 		<dbManagementADdomain>domain</dbManagementADdomain><!-- what is the domain suffix of the above group -->
 	</program>
@@ -66,7 +66,7 @@
 	
 	<!-- Printing Configuration -->
 		
-		<!-- IP recept printer configuration, THIS IS THE NORMAL CONFIG FOR NON HO STORES -->
+		<!-- IP recept printer configuration -->
 		<!-- Does this store have IP Recept Printers -->
 		<isstorereceptprintip>Y</isstorereceptprintip>
 		<!-- If Yes, What is the JPOS.xml device string for the IP receipt printer -->
@@ -76,7 +76,7 @@
 		<!-- If Yes, is there a cashdraw connected via the IP Printer Kickport? -->
 			<cashDrawConnectedViaKickport>No</cashDrawConnectedViaKickport>
 
-		<!-- Standard Till with attached USB receipt Printer, THIS IS THE STANDARD FOR ONSITE TILLS -->
+		<!-- Standard Till with attached USB receipt Printer-->
 		<!-- Do you want to set this till up with a standard usb receipt printer attached, no shareing or anything else? -->
 		<bogstandardusbprt>N</bogstandardusbprt>
 
