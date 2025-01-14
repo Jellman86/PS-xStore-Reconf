@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Hardware xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="HardwareConfig.xsd">
+  <PlaySounds dtype="Boolean">true</PlaySounds>
+  <ForceDrawerClose dtype="Boolean">true</ForceDrawerClose>
+  <ShowPrinterDialog dtype="Boolean">false</ShowPrinterDialog>
+
+  <Device type="CashDrawer" use="CASHDRAWER">
+    <name dtype="String">Micros-CashDrawer1</name>
+  </Device>
+  
+  <Device type="CustomerDisplay" use="CUST_DISPLAY">
+    <name dtype="String">Micros-LineDisplay</name>
+  </Device>
+  
+  <Device type="Scanner" use="BARCODE_SCANNER">
+	 <name dtype="String">Symbol-Scanner-Wedge</name>
+  </Device>
+  
+</Hardware>

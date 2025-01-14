@@ -1,2 +1,10 @@
-#environment Files
+#Sensitive Files
 .env
+.keystore
+.cer
+.crt
+.pfx
+.jks
+
+#Specific Secrets
+prid_map.xml
