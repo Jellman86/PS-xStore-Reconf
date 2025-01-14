@@ -86,6 +86,9 @@ $pedip2 = $s2config.TillConfig.peds.pedip2;
 $pedip3 = $s2config.TillConfig.peds.pedip3;
 $pedip4 = $s2config.TillConfig.peds.pedip4;
 $pedip5 = $s2config.TillConfig.peds.pedip5;
+#----PED Config
+$dbAdminGroup = $s2config.TillConfig.program.dbManagementADgroup;
+$dbAdminDomain = $s2config.TillConfig.program.dbManagementADdomain;
 
 #logical names
 #--- hwconfigxml
@@ -120,6 +123,23 @@ $corrdirIPrecpt = 'terminalip' #ip recipt printer
 $corrdirShareclient = 'terminalip'#xstore printer share client
 $corrdirstdusb = 'terminal' #bog standard USB recipt printer
 
+# SQL that is ran to add configured administrator group to database.
+$xstoreAdminActions = @"
+    USE [master]
+    GO
+    CREATE LOGIN [$dbAdminDomain\$dbAdminGroup] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+    GO
+    ALTER SERVER ROLE [sysadmin] ADD MEMBER [$dbAdminDomain\$dbAdminGroup]
+    GO
+    USE [xstore]
+    GO
+    CREATE USER [$dbAdminDomain\$dbAdminGroup] FOR LOGIN [$dbAdminDomain\$dbAdminGroup]
+    GO
+    USE [xstore]
+    GO
+    ALTER ROLE [db_owner] ADD MEMBER [$dbAdminDomain\$dbAdminGroup]
+    GO
+"@
 
 #functions -------------
 #Writes stuff to the log.
@@ -1203,23 +1223,21 @@ Write-Log "   "
 
     If($sqlserversrunning -gt '0'){
         $sqladminspre = (Invoke-Sqlcmd -U sa -P $sadbuserpass -InputFile ".\dependencies\sql\admintest.sql").login
-            if($sqladminspre -icontains 'DENBYGROUP\G Xstore SQL Admins'){
+            if($sqladminspre -icontains "$dbAdminDomain\$dbAdminGroup"){
                 Pop-Location
-                Write-Log " : WARN, SQL server allready contains DENBYGROUP\G Xstore SQL Admins, doing nothing."
+                Write-Log " : WARN, SQL server allready contains $dbAdminDomain\$dbAdminGroup, doing nothing."
             }else{
-                    Write-Log " : Detected SQL server running, adding denby to remote users."
-                    Invoke-Sqlcmd -U 'sa' -P $sadbuserpass -InputFile '.\dependencies\sql\XstoreSQLAdmins.sql' | out-null
+                    Write-Log " : Detected SQL server running, adding $dbAdminDomain\$dbAdminGroup to remote users."
+                    Invoke-Sqlcmd -U 'sa' -P $sadbuserpass -Query $xstoreAdminActions | out-null
                     Pop-Location
                     Start-Sleep -Seconds 20
                     $sqladminspost = (Invoke-Sqlcmd -U sa -P $sadbuserpass -InputFile ".\dependencies\sql\admintest.sql").login
-                            if($sqladminspost -icontains 'DENBYGROUP\G Xstore SQL Admins'){
+                            if($sqladminspost -icontains "$dbAdminDomain\$dbAdminGroup"){
                                 Pop-Location
-                                Write-Log " : Confirming that G Xstore SQL Admins has been added to the users that can logon remotely."
-                                $global:sqladminadded = 'Yes'
+                                Write-Log " : Confirming that $dbAdminGroup has been added to the users that can logon remotely."
                             }else{
                                 Pop-Location
-                                Write-Log " : ERROR, DENBYGROUP\G Xstore SQL Admins has not been added to the database."
-                                $global:sqladminadded = 'no'
+                                Write-Log " : ERROR, $dbAdminDomain\$dbAdminGroup has not been added to the database."
                             }
             }
         }else{
