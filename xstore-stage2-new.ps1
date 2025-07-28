@@ -223,7 +223,6 @@ Function invoke-xStoreConfigurationBats {
 }
 #Function to enable Windows Auto Logon.
 Function invoke-AutoLogon {
-
     if($global:enableWindowsAutoLogon -eq $false){
         Write-Log -type 'general' -msg "Automatic windows logon was not requested ($global:enableWindowsAutoLogon), skipping."
     }elseif($global:enableWindowsAutoLogon -eq $true){
@@ -237,9 +236,51 @@ Function invoke-AutoLogon {
             Set-ItemProperty $autoLogonRegPath 'DefaultUsername' -Value "\$env:USERNAME" -type String -Force
             Set-ItemProperty $autoLogonRegPath 'DefaultPassword' -Value $global:automaticWindowsLogonPassword -type String -Force
             Remove-ItemProperty $autoLogonRegPath 'AutoLogonCount' -ErrorAction SilentlyContinue;
+            if(Test-Path -path "C:\$global:brandName\Autologon64.exe"){
+                try{
+                    #attempting to set up autologn with autologon64.exe
+                    Start-Process -FilePath "C:\$global:brandName\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText) -wait;
+                }catch{
+                    write-ErrorObjectForLater -functionName "invoke-AutoLogon" -cause "Autologon64.exe failed to run" -errorMessage "Autologon64.exe failed to run, please check the path and the arguments (error: $($error[0].Exception.Message))"
+                }
+            }else{
+                write-ErrorObjectForLater -functionName "invoke-AutoLogon" -cause "Autologon64.exe not found" -errorMessage "Cannot find Autologon64.exe in C:\$global:brandName\Autologon64.exe, please check the path."
+            }
+    }
+}
+#Add users to db administrators
+Function add-dbAdminToLocalDBRemoteUsers {
 
-            #attempting to set up autologn with autologon64.exe
-            Start-Process -FilePath "C:\$global:brandName\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText) -wait
+$sqlAdminPreCheckSQL = @"
+select sp.name as login,
+       sp.type_desc as login_type,
+       case when sp.is_disabled = 1 then 'Disabled'
+            else 'Enabled' end as status
+from sys.server_principals sp
+left join sys.sql_logins sl
+          on sp.principal_id = sl.principal_id
+where sp.type not in ('R','C')
+order by sp.name;
+"@
+$correctUsernameAndPasswordString = @($global:xstoreDatabaseSqlAdminDomain, $global:xstoreDatabaseSqlAdminGroupName) -join "\";
+
+    If(((Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count) -gt '0'){
+            if((@(Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $sqlAdminPreCheckSQL).login) -icontains $correctUsernameAndPasswordString){
+                Write-Log -type 'warn' -msg "SQL server allready contains $correctUsernameAndPasswordString, no action has been taken."
+            }else{
+                    Write-Log " : Detected SQL server running, adding $correctUsernameAndPasswordString to remote users."
+                    Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $xstoreAdminActions | out-null
+                    Start-Sleep -Seconds 20
+                    $sqladminspost = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
+                            if($sqladminspost -icontains $correctUsernameAndPasswordString){
+                                Write-Log " : Confirming that $global:xstoreDatabaseSqlAdminGroupName has been added to the users that can logon remotely."
+                            }else{
+                                Write-Log " : ERROR, $correctUsernameAndPasswordString has not been added to the database."
+                            }
+            }
+    }else{
+        Write-Log " : Error, cannot detect running SQL server, server process count is $sqlserversrunning."
+        write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "Cannot detect running SQL server" -errorMessage "Cannot detect running SQL server, please check the SQL server is running and the credentials are correct."
     }
 }
 
@@ -259,3 +300,4 @@ $global:scriptErrorObject = @();
 Set-PathVariable -AddPath "C:\Program Files\Java\jdk-$global:xstoreRequiredJdkVersion\bin" -Scope Machine;
 Set-SQLRemoteAccessFirewallRule;
 invoke-xStoreConfigurationBats;
+invoke-AutoLogon;
