@@ -28,45 +28,45 @@ Function get-ConfigFile {
         #Script Configuration Variables.
             $global:scriptLoggingPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "script.logging.path"}).Value;
         #Brand Configuration Variables.
-            $global:brandChange = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.change"}).Value;
-            $global:brandName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.name"}).Value;
+            $global:brandChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.change"}).Value -eq "true")
+            $global:brandName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.name"}).Value
         #Store Number Configuration Variables.
-            $global:storeNumberChange = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.change"}).Value;
-            $global:storeNumberNew = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.new"}).Value;
+            $global:storeNumberChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.change"}).Value -eq "true")
+            $global:storeNumberNew = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.new"}).Value
         #Park Retail Configuration Variables.
-            $global:parkRetailChange = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.change"}).Value;
-            $global:parkRetailMap = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.map.path"}).Value;
+            $global:parkRetailChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.change"}).Value -eq "true")
+            $global:parkRetailMap = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.map.path"}).Value
         #Automatic Windows Logon Configuration Variables.
-            $global:enableWindowsAutoLogon = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon"}).Value;
-            $global:automaticWindowsLogonPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon.password"}).Value;
+            $global:enableWindowsAutoLogon = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon"}).Value -eq "true")
+            $global:automaticWindowsLogonPassword = ConvertTo-SecureString -String $(($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon.password"}).Value) -AsPlainText -Force
         #Printing Configuration
-            $global:changePrintingConfiguration = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.change"}).Value;
-            $global:printingIsIp = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.ip"}).Value;
-            $global:printingIsIpCashDrawer = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.ipcashdrawer"}).Value;
-            $global:printingIsUsb = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.usb"}).Value;
-            $global:printingIsXStoreShared = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.xstoreShared"}).Value;
-            $global:printingIpAddress = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.address"}).Value;
-            $global:printingIpCashDrawerAddress = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.cashdrawer.address"}).Value;
-            $global:printingUsbSharedHostname = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.usbshared.hostname"}).Value;
-            $global:printingEpsonConfigPcsPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.epson.config.pcs.path"}).Value;
+            $global:changePrintingConfiguration = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.change"}).Value -eq "true")
+            $global:printingIsIp = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.ip"}).Value -eq "true")
+            $global:printingIsIpCashDrawer = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.ipcashdrawer"}).Value -eq "true")
+            $global:printingIsUsb = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.usb"}).Value -eq "true")
+            $global:printingIsXStoreShared = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.xstoreShared"}).Value -eq "true")
+            $global:printingIpAddress = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.address"}).Value
+            $global:printingIpCashDrawerAddress = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.cashdrawer.address"}).Value
+            $global:printingUsbSharedHostname = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.usbshared.hostname"}).Value
+            $global:printingEpsonConfigPcsPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.epson.config.pcs.path"}).Value
         #Peds Configuration
-            $global:changePedsConfiguration = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.change"}).Value;
-            $global:amountOfPeds = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.amount"}).Value;
-            $global:pedsIpAddress1 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.1"}).Value;
-            $global:pedsIpAddress2 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.2"}).Value;
-            $global:pedsIpAddress3 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.3"}).Value;
-            $global:pedsIpAddress4 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.4"}).Value;
-            $global:pedsIpAddress5 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.5"}).Value;
-            $global:pedsEftlinkPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.eftlink.path"}).Value;
+            $global:changePedsConfiguration = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.change"}).Value -eq "true")
+            $global:amountOfPeds = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.amount"}).Value
+            $global:pedsIpAddress1 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.1"}).Value
+            $global:pedsIpAddress2 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.2"}).Value
+            $global:pedsIpAddress3 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.3"}).Value
+            $global:pedsIpAddress4 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.4"}).Value
+            $global:pedsIpAddress5 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.5"}).Value
+            $global:pedsEftlinkPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.eftlink.path"}).Value
         #XStore Configuration Variables.
-            $global:xstoreBaseConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.baseproperties.path"}).Value;
-            $global:xstoreSystemConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.systemproperties.path"}).Value;
-            $global:xstoreMobileConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.mobile.mobileproperties.path"}).Value;
-            $global:xstoreMenuConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.menu.path"}).Value;
-            $global:xstoreDatabaseUserDtvPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.dtv.password"}).Value;
-            $global:xstoreDatabaseUserSaPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.sa.password"}).Value;
-            $global:xstoreDatabaseSqlAdminGroupName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.sqladmin.group.name"}).Value;
-            $global:xstoreDatabaseSqlAdminDomain = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.sqladmin.domain"}).Value;
+            $global:xstoreBaseConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.baseproperties.path"}).Value
+            $global:xstoreSystemConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.systemproperties.path"}).Value
+            $global:xstoreMobileConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.mobile.mobileproperties.path"}).Value
+            $global:xstoreMenuConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.menu.path"}).Value
+            $global:xstoreDatabaseUserDtvPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.dtv.password"}).Value
+            $global:xstoreDatabaseUserSaPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.sa.password"}).Value
+            $global:xstoreDatabaseSqlAdminGroupName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.sqladmin.group.name"}).Value
+            $global:xstoreDatabaseSqlAdminDomain = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.sqladmin.domain"}).Value
             $global:xstoreRequiredJdkVersion = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.required.jdk.version"}).Value;
 }
 #Function to write to the log file.
@@ -78,7 +78,7 @@ Function write-Log {
 
         # Get time of log action.
         $global:logtime = get-date -Format "dd.MM.yy-HH.mm.ss"
-        $global:logFile = "$($scriptConfiguration.Value)\$runID-xstore-stage2-$($logFileDate).log"
+        $global:logFile = "$($global:scriptLoggingPath)\$runID-xstore-stage2-$($logFileDate).log"
 
         # Write to correct logging file.
         if($type -ilike "error"){
@@ -210,6 +210,38 @@ Function write-ErrorObjectForLater {
         Write-Log -type "error" -msg "Adding error for later - $functionName - $cause - $errorMessage"
 
 }
+#Runs xstore / xenviroment configuration bat files. 
+Function invoke-xStoreConfigurationBats {
+    $configBatNames = @("baseconfigure.bat","configure.bat","mobile_baseconfigure.bat","mobile_configure.bat");
+    $ConfigBatPaths = @("c:\xstore", "c:\xstore-mobile", "c:\xenvironment");
+    Get-ChildItem -path $ConfigBatPaths -Include $configBatNames | foreach-object {
+            Write-Log " : $($_.FullName) has been found, running."
+            Start-Process "cmd.exe" -ArgumentList "/c $($_.FullName)" -Wait
+            Start-Sleep -Seconds 5
+    }
+
+}
+#Function to enable Windows Auto Logon.
+Function invoke-AutoLogon {
+
+    if($global:enableWindowsAutoLogon -eq $false){
+        Write-Log -type 'general' -msg "Automatic windows logon was not requested ($global:enableWindowsAutoLogon), skipping."
+    }elseif($global:enableWindowsAutoLogon -eq $true){
+        #Get the domain name and convert to upper case.
+        $domain = (((Get-CIMInstance CIM_ComputerSystem).domain).split('.')[0]).ToUpper();
+        Write-Log -type 'general' -msg "Using the following for auto logon, username: $domain\$env:USERNAME password: $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText)."
+
+        #write the values
+        $autoLogonRegPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+            Set-ItemProperty $autoLogonRegPath 'AutoAdminLogon' -Value "1" -Type String -Force
+            Set-ItemProperty $autoLogonRegPath 'DefaultUsername' -Value "\$env:USERNAME" -type String -Force
+            Set-ItemProperty $autoLogonRegPath 'DefaultPassword' -Value $global:automaticWindowsLogonPassword -type String -Force
+            Remove-ItemProperty $autoLogonRegPath 'AutoLogonCount' -ErrorAction SilentlyContinue;
+
+            #attempting to set up autologn with autologon64.exe
+            Start-Process -FilePath "C:\$global:brandName\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText) -wait
+    }
+}
 
 #Read in the script config file.
 Get-ConfigFile -configFileLocation ".\.env";
@@ -226,3 +258,4 @@ $global:scriptErrorObject = @();
 
 Set-PathVariable -AddPath "C:\Program Files\Java\jdk-$global:xstoreRequiredJdkVersion\bin" -Scope Machine;
 Set-SQLRemoteAccessFirewallRule;
+invoke-xStoreConfigurationBats;
