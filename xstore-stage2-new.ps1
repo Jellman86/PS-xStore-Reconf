@@ -251,7 +251,24 @@ Function invoke-AutoLogon {
 #Add users to db administrators
 Function add-dbAdminToLocalDBRemoteUsers {
 
-$sqlAdminPreCheckSQL = @"
+$denbySQLAdminsGroup = @($global:xstoreDatabaseSqlAdminDomain, $global:xstoreDatabaseSqlAdminGroupName) -join "\";
+$addDenbySQLAdmins = @"
+    USE [master]
+    GO
+    CREATE LOGIN [$denbySQLAdminsGroup] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+    GO
+    ALTER SERVER ROLE [sysadmin] ADD MEMBER [$denbySQLAdminsGroup]
+    GO
+    USE [xstore]
+    GO
+    CREATE USER [$denbySQLAdminsGroup] FOR LOGIN [$denbySQLAdminsGroup]
+    GO
+    USE [xstore]
+    GO
+    ALTER ROLE [db_owner] ADD MEMBER [$denbySQLAdminsGroup]
+    GO
+"@
+$checkDenbySQLAdmins = @"
 select sp.name as login,
        sp.type_desc as login_type,
        case when sp.is_disabled = 1 then 'Disabled'
@@ -262,25 +279,23 @@ left join sys.sql_logins sl
 where sp.type not in ('R','C')
 order by sp.name;
 "@
-$correctUsernameAndPasswordString = @($global:xstoreDatabaseSqlAdminDomain, $global:xstoreDatabaseSqlAdminGroupName) -join "\";
 
     If(((Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count) -gt '0'){
-            if((@(Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $sqlAdminPreCheckSQL).login) -icontains $correctUsernameAndPasswordString){
-                Write-Log -type 'warn' -msg "SQL server allready contains $correctUsernameAndPasswordString, no action has been taken."
+            if((@(Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $checkDenbySQLAdmins).login) -icontains $denbySQLAdminsGroup){
+                Write-Log -type 'warn' -msg "SQL server allready contains $denbySQLAdminsGroup, no action has been taken."
             }else{
-                    Write-Log " : Detected SQL server running, adding $correctUsernameAndPasswordString to remote users."
-                    Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $xstoreAdminActions | out-null
+                    Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $addDenbySQLAdmins | out-null
                     Start-Sleep -Seconds 20
-                    $sqladminspost = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
-                            if($sqladminspost -icontains $correctUsernameAndPasswordString){
-                                Write-Log " : Confirming that $global:xstoreDatabaseSqlAdminGroupName has been added to the users that can logon remotely."
+                            if(@((Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $checkDenbySQLAdmins).login) -icontains $denbySQLAdminsGroup){
+                                Write-Log -type 'success' -msg "Confirming that $global:xstoreDatabaseSqlAdminGroupName has been added to the users that can logon remotely."
                             }else{
-                                Write-Log " : ERROR, $correctUsernameAndPasswordString has not been added to the database."
+                                Write-Log -type 'error' -msg "$denbySQLAdminsGroup has not been added to the database."
+                                write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "SQL admin group not added" -errorMessage "$denbySQLAdminsGroup has not been added to the database, please check the SQL server is running and the credentials are correct."
                             }
             }
     }else{
-        Write-Log " : Error, cannot detect running SQL server, server process count is $sqlserversrunning."
-        write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "Cannot detect running SQL server" -errorMessage "Cannot detect running SQL server, please check the SQL server is running and the credentials are correct."
+        Write-Log -type 'error' -msg "Cannot detect running SQL server."
+        write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "Cannot detect running SQL server" -errorMessage "Cannot detect running SQL server, therefor unable to add $denbySQLAdminsGroup to the database."
     }
 }
 
