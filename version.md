@@ -1,32 +1,36 @@
 # xStore Reconfiguration Tool - Version History
 
+## v1.05 140825
+
+- Simplify and refactor.
+
 ## v1.04 140125
 
--- Cleanup for github upload.
+- Cleanup for github upload.
 
 ## v1.03 130624
 
--- Added configuration for cashdraws connected to IP printer kick ports.
+- Added configuration for cashdraws connected to IP printer kick ports.
 
 ## v1.03 110423
 
--- Cleaned Up Schedualed Tasks.
+- Cleaned Up Schedualed Tasks.
 
 ## v1.02 210323
 
--- Updated logging function.
+- Updated logging function.
 
 ## v1.01 100323
 
--- Add receipt email address change for BLL.
+- Add receipt email address change for BLL.
 
 ## v1.00 080223
 
--- Code review and clean up, build to pilot.
+- Code review and clean up, build to pilot.
 
 ## v0.20 070223
 
--- Modified configpath modification to only edit the base-xstore file.
+- Modified configpath modification to only edit the base-xstore file.
 
 ## v0.19 070223
 
