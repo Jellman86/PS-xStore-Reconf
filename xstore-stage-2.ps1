@@ -695,7 +695,7 @@ $defaultSchedTasks = @(
     }
 }
 #Add configured groups to local database db administrators
-Function invoke-denbyDBAdminToLocalDBRemoteUsers {
+Function invoke-dBAdminToLocalDBRemoteUsers {
     If(((Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count) -gt 0){
         Foreach($dbName in $global:xstoreDatabaseSqlAdminGroupNames){
 
@@ -788,7 +788,7 @@ Set-SQLRemoteAccessFirewallRule;
 invoke-AutoLogon;
 invoke-storeNumberChange;
 invoke-pridChange;
-invoke-denbyDBAdminToLocalDBRemoteUsers;
+invoke-dBAdminToLocalDBRemoteUsers;
 invoke-pedIpChange;
 
 if($global:changePrintingConfiguration -eq $true){
