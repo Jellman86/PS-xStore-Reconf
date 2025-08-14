@@ -781,7 +781,7 @@ $startTime = (get-date -Format "HH:mm:ss");
 
 #-------------------------------------------------------------------------------------------------------------------
 
-Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$vgpScriptVerson) Start run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
+Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$scriptVer) Start run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
 
 Set-PathVariable -AddPath "C:\Program Files\Java\jdk-$global:xstoreRequiredJdkVersion\bin" -Scope Machine;
 Set-SQLRemoteAccessFirewallRule;
@@ -811,7 +811,7 @@ write-log -type 'general' -msg "Errors During Operation Were:"
 $global:scriptErrorObject | Format-Table -AutoSize | out-file $global:scriptLoggingPath -append;
 
 write-log -type 'general' -msg "Process has finished, the script took $((New-TimeSpan -Start $startTime -End $((get-date -Format "HH:mm:ss"))).Minutes) minutes and $((New-TimeSpan -Start $startTime -End $endTime).Seconds) seconds.";
-Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$vgpScriptVerson) End run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
+Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$scriptVer) End run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
 
 "Disposing of all Variables for next run"
 Get-Variable -Exclude PWD,*Preference | Remove-Variable -EA 0;
