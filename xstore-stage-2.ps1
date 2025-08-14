@@ -1,1518 +1,819 @@
-#v1.04 140125 --- Cleanup for github upload.
-#v1.03 130624 --- Added configuration for cashdraws connected to IP printer kick ports.
-#v1.03 110423 --- Cleaned Up Schedualed Tasks.
-#v1.02 210323 --- Updated logging function.
-#v1.01 100323 --- Add receipt email address change for BLL.
-#v1.00 080223 --- Code review and clean up, build to pilot.
-#v0.19 070223 --- Modified configpath modification to only edit the base-xstore file.
-#v0.19 070223 --- Added editing config path to modify brand.
-#v0.18 100123 --- Added update ocius.keystore option at Cathys request.
-#v0.17 121122 --- Fix PCS.properties IP address editing.
-#v0.16 --- Cleanup and fix auto-logon.
-#v0.15 --- Externalising more configuration variables, including DB Passwords. 
-#v0.14 --- Updated with correction for store number change from OLR.
-#v0.13 --- Updated config path change to support xstore mobile config path.
-#v0.13 --- Updated config path change to edit base xstore file so it does not overwrite changed values.
-#v0.12 --- Implemented Park Retail configuration modification at Peters Request.
-#v0.11 --- Correct Printer Sharing client configuration so it also edits v1 jpos.xml.
-#v0.10 --- Handle creating correct ethernet port configuration in PCS.prop if none is present.
-#v0.09 --- Implement changing of ip printer address in PCS.properties.
-#v0.08 --- Implement Logical Port number reading and updating in jpos.
-#v0.07 --- Implemented the rest of schedualed tasks.
-#v0.06 --- Implemented adding $brand sql admin group to local database.
-#v0.06 --- Implement Auto logon, new IP printer mechanism, start of implementing schedualed tasks.
-#v0.05 --- Implement store number change.
-#v0.04 --- Implement changing config path to specifiy which config is used.
-#v0.03 --- Clean up and add jdk to path.
-#v0.02 --- Add Ip recipt printer configuration.
-#v0.01 --- Add functions to read and write content from jar files
-#v0.00 --- Initial build.
+# --- xstore reconfiguration script ---
 
-#Go to correct directory when run as admin
-Set-Location $PSScriptRoot -Verbose
+$scriptVer = "1.5"; # See version.md
 
-#Generating run ID for multiple run logging.
-$runid = get-date -format "HH-mm-ss"
+#Objects Initialization
+$global:fileBackups = @();
+$global:scriptConfiguration = @();
+$global:scriptErrorObject = @();
 
-#Location of Options file, this must be XML with structure as intimated below.
-$s2configpath = ".\env.xml";
-$s2config = [xml](Get-Content $s2configpath);
-$logDIR = ".\logs";
-$loggingpath = "$logDIR\v20-stage-2-log-RUNID_$runid.log";
+#-------------------------------------------------------------------------------------------------------------------
 
-#Printing Config
-#---- Program Config
-$hwconfigpath = $s2config.TillConfig.Program.hwconfigjarpath;
-$eftlinkdir = $s2config.TillConfig.Program.eftlinkdir;
-$autoclosexstore = $s2config.TillConfig.Program.autoclosexstore;
-$pcsproppath = $s2config.TillConfig.Program.pcsproploc;
-$sqlfwreq = $s2config.TillConfig.Program.addsqlremoteaccess;
-$xstoresysprop = $s2config.TillConfig.Program.xstoresysproperties;
-$xstoresyspropmob = $s2config.TillConfig.Program.xstoresyspropertiesMOB;
-$jdkver = $s2config.TillConfig.Program.jdkver;
-$updateOcKs = $s2config.TillConfig.Program.updateOciusKeystore;
-#----Brand Configuration
-$changeBrand = $s2config.TillConfig.brand.changeBrand;
-$brand = $s2config.TillConfig.brand.brand;
-$brandRcptEml = $s2config.TillConfig.brand.brandRcptEmail;
-#----Database Configuration
-$dbAdminGroup = $s2config.TillConfig.program.dbManagementADgroup;
-$dbAdminDomain = $s2config.TillConfig.program.dbManagementADdomain;
-$dvtdbuserpass = $s2config.TillConfig.Program.dvtuserpass;
-$dbAdminUserName = $s2config.TillConfig.Program.dbAdminUname;
-$dbAdminUserPass = $s2config.TillConfig.Program.dbAdminUPass;
-#---- Store Number Config
-$changestnum = $s2config.TillConfig.storenumber.changestorenum;
-$newstorenum = $s2config.TillConfig.storenumber.newstorenumis;
-$xstorebaseconfigloc = $s2config.TillConfig.Program.xstorebaseconf;
-$xenvironbaseconfigloc = $s2config.TillConfig.Program.xenvirobaseconf;
-#---- PRID Configurations
-$pridcnreq = $s2config.TillConfig.peterrequests.pridchange;
-$pridmaploc = $s2config.TillConfig.peterrequests.pridmaploc;
-#---- Auto Logon Config
-$enableautologon = $s2config.TillConfig.autologon.enableautologon;
-$autologonpass = $s2config.TillConfig.autologon.userpass;
-#---- server config
-$isprintserver = $s2config.TillConfig.printing.PSisprintserver;
-$fwreq = $s2config.TillConfig.printing.createsharefwrule;
-$pshost = $s2config.TillConfig.printing.usbprintserverhost;
-$psport = $s2config.TillConfig.printing.usbprintserverport;
-#---- Share Print Client Config
-$printclient = $s2config.TillConfig.printing.isnetworkprintclient;
-$jposprintstring = $s2config.TillConfig.printing.PSprinterjposstring;
-$ipreceptprtreq = $s2config.TillConfig.printing.isstorereceptprintip;
-$receptprtip = $s2config.TillConfig.printing.ipreceptlocal;
-$ipprintjposstr = $s2config.TillConfig.printing.ipprinterjposstring;
-$ipCashDrawConnected = $s2config.TillConfig.printing.cashDrawConnectedViaKickport;
-$ipCashHWPath = $s2config.TillConfig.Program.ipCashDrawHWConfPathName;
-#---- Bog standard USB Config
-$isbogstandard = $s2config.TillConfig.printing.bogstandardusbprt;
-#----PED Config 
-$pednum = $s2config.TillConfig.peds.howmanypeds;
-$pedip1 = $s2config.TillConfig.peds.pedip1;
-$pedip2 = $s2config.TillConfig.peds.pedip2;
-$pedip3 = $s2config.TillConfig.peds.pedip3;
-$pedip4 = $s2config.TillConfig.peds.pedip4;
-$pedip5 = $s2config.TillConfig.peds.pedip5;
-
-#logical names
-#--- hwconfigxml
-$filenamehw = ([string]$hwconfigpath -split '\\')[-1]
-$pathhw = ($hwconfigpath -replace $filenamehw, "")
-$pathhw = $pathhw.TrimEnd("\")
-#--- jposxml Version 1 edition
-$jposv1configpath = "$pathhw\version1\jpos.xml";
-$filenamejpv1 = ([string]$jposv1configpath -split '\\')[-1]
-$pathjpv1 = ($jposv1configpath -replace $filenamejpv1, "")
-$pathjpv1 = $pathjpv1.TrimEnd("\")
-#--- System.properties 
-$filenamexstsysprop = ([string]$xstoresysprop -split '\\')[-1]
-$pathxstsysprop = ($xstoresysprop  -replace $filenamexstsysprop, "")
-$pathxstsysprop = $pathxstsysprop.TrimEnd("\")
-#--- base-xstore.properties - Environment
-$filenameenv = ([string]$xenvironbaseconfigloc -split '\\')[-1]
-$pathenv = ($xenvironbaseconfigloc -replace $filenameenv, "")
-$pathenv = $pathenv.TrimEnd("\")
-#--- base-xstore.properties - xstore
-$filenamebxs = ([string]$xstorebaseconfigloc -split '\\')[-1]
-$pathbxs = ($xstorebaseconfigloc -replace $filenamebxs, "")
-$pathbxs = $pathbxs.TrimEnd("\")
-#--- Pcs.Properties - Epson Port com service
-$filenamepcs = ([string]$pcsproppath -split '\\')[-1]
-$pathpcsprop = ($pcsproppath -ireplace $filenamepcs, "")
-$pathpcsprop = $pathpcsprop.TrimEnd("\")
-
-#what config gets edited?
-$corrdirUSBServ = 'terminalShare'; #usbprinter share server
-$corrdirIPrecpt = 'terminalip' #ip recipt printer
-$corrdirShareclient = 'terminalShare'; #xstore printer share client
-$corrdirstdusb = 'terminal' #bog standard USB recipt printer
-
-# SQL that is ran to add configured administrator group to database.
-# Splatted because it needs to be modified to include the correct
-# username and domain.
-$xstoreAdminActions = @"
-    USE [master]
-    GO
-    CREATE LOGIN [$dbAdminDomain\$dbAdminGroup] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
-    GO
-    ALTER SERVER ROLE [sysadmin] ADD MEMBER [$dbAdminDomain\$dbAdminGroup]
-    GO
-    USE [xstore]
-    GO
-    CREATE USER [$dbAdminDomain\$dbAdminGroup] FOR LOGIN [$dbAdminDomain\$dbAdminGroup]
-    GO
-    USE [xstore]
-    GO
-    ALTER ROLE [db_owner] ADD MEMBER [$dbAdminDomain\$dbAdminGroup]
-    GO
-"@
-
-#functions -------------
-#Writes stuff to the log.
-Function Write-Log {
-    param(
-        [Parameter(Mandatory=$true)][String]$msg
-    )
-
-    $logtime = (get-date -Format "HH:mm:ss-ddMMyy")
-    "$logtime$msg" -replace ":", ''
-    Add-Content $loggingpath $logtime$msg
-}
-
-#Create Basic script directories.
-Function Set-DScript-DIRs {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CREATING SCRIPT DIRS <<<"
-Write-Log "   "
-
-
-    Write-log " : Creating c:\$brand"
-    New-Item -ItemType Directory -Path c:\ -Name $brand -Force -ErrorAction SilentlyContinue
-    Write-log " : Creating c:\$brand\Scripts"
-    New-Item -ItemType Directory -Path c:\$brand -Name Scripts -Force -ErrorAction SilentlyContinue
-    Write-log " : Creating c:\$brand\Scripts\Logs"
-    New-Item -ItemType Directory -Path c:\$brand\Scripts -Name Logs -Force -ErrorAction SilentlyContinue
-}
-
-#Get configuration for PCS.Properties
-Function Get-Epson-Ephemeral-Port {
-    Write-Log "   "
-    Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Checking the Epson Virtual Ports <<<"
-    Write-Log "   "
-        
-        #Backup current pcs.properties file
-        Write-log " : backing up pcs.properties to $pcsproppath.orig.backup.$runid."
-        Copy-Item -Path $pcsproppath -Destination "$pcsproppath.orig.backup.$runid" -Force
-
-        #Count the number of enteries in the pcs propterties file
-        $pcspropxml = [xml](get-content -Path $pcsproppath)
-        $global:numofeffport = ($pcspropxml.xmlroot.type.Value | Where-Object {$_ -ilike "ESDPRT*"}).Count
-        Write-log " : $numofeffport epson virtual printer ports have been detected in $pcsproppath."
-
-        #Get variables for later use.
-        foreach($effport in ($pcspropxml.xmlroot.type)){
-            foreach($prop in $effport.property | Where-Object {$_.ID -ieq "PortName"}){
-                    if(($prop).value -ilike "*usb*"){
-                                $global:notethernetprot= $effport.value
-                                Write-log " : $notethernetprot is not a ethernet port, Is a USB Port."
-                                }else{
-                                        try{
-                                            if($prop.value -ieq '${ipprinter}'){
-                                                    $global:ethernetportval = $effport.value
-                                                    $global:pcpropnetportval = ($prop).value
-                                                    Write-log " : $ethernetportval Has been detected as an ethernet printer @ $pcpropnetportval."
-                                                }else{
-                                                    [System.Net.IPAddress] ($prop).value
-                                                    #Ethernet Virtual Port Name
-                                                    $global:ethernetportval = $effport.value
-                                                    #Ethernet Virtual Port Address
-                                                    $global:pcpropnetportval = ($prop).value
-                                                    Write-log " : $ethernetportval Has been detected as an ethernet printer @ $pcpropnetportval."
-                                                }
-                                        }catch{
-                                            #Any other Ports configured.
-                                            $global:bunkepsonport= $effport.value
-                                            Write-log " : $bunkepsonport is not a ethernet port or a USB Port."
-                                        }
-                                }
+#Function to read in the configuration file.
+Function get-ConfigFile {
+        param(
+                [string]$configFileLocation=(throw 'configFile is required.')
+        )
+        #Instantiate the script configuration variable.
+                if(Test-Path -path $configFileLocation){
+                #Read the config file and add to the configuration variable.
+                foreach ($config in (Get-Content $configFileLocation | Where-Object {$_ -notlike "#*" -and $_ -match "="})) {
+                        $global:scriptConfiguration += New-Object psobject -Property @{
+                            Property = $config.Split("=")[0].Trim();
+                            Value = $config.Split("=")[1].Trim();
+                        }
                     }
-                }
-
-}
-
-#Parse and edit the configpath.
-Function Set-Hardware-Configpath {
-                    param(
-                            [Parameter(Mandatory=$true)][String]$replacewith
-                        )
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EDITIING CONFIGPATH <<<"
-Write-Log "   "
-
-    if(Test-Path -Path $xstorebaseconfigloc){
-
-                    #-------------- Xstore-Base config Path --------------#
-                    $confpathbasedir = ([string]$xstorebaseconfigloc -ireplace 'base-xstore.properties', '').TrimEnd('\')
-                    #backingup configpath file original
-                    Write-log " : Backing up base-xstore.properties to $confpathbasedir\base-xstore.properties.cnfedit.bak.$runid"
-                    Copy-Item -Path $xstorebaseconfigloc -Destination "$confpathbasedir\base-xstore.properties.cnfedit.bak.$runid" -Force
-                                
-                                Write-log " : Configuring xstore-baseconfig configuration path."
-                                $confpathcont = Get-Content -Path $xstorebaseconfigloc   
-                                $ai = 0
-                                    foreach($line in $confpathcont){
-                                        $ai += 1
-                                        if($line -ilike 'xstore.config.path.global.extensions*'){
-                                            Write-log " : Line($ai) is holding the config.path.global.extensions."
-                                                $arrno = 0
-                                                        $linearr = @($line.Split(':'))
-                                                            foreach($seg in $linearr){
-                                                                $arrno += 1
-                                                                        if($seg -ilike "hardware/*"){
-                                                                            Write-log " : Replacing $seg with $replacewith."
-                                                                            $global:replacewith = $replacewith.Trim()
-                                                                            $seg = ""
-                                                                            $seg = "$replacewith"
-                
-                                                                            $linearr[$arrno -1] = $seg
-                                                                            $line = [string]$linearr -replace " ", ':'
-                
-                                                                            Write-log " : ($line) will now be written to config file"
-                                                                            $confpathcont[$ai -1] = $line
-                                                                            $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                        }
-                                                            }
-                                        }
-                                    }
-
-                                    #-------------- Xstore-base config Path, mobile part. --------------#            
-                                    Write-log " : Configuring mobile configuration path."
-                                    $confpathcont = Get-Content -Path $xstorebaseconfigloc 
-                                    $ai = 0
-                                        foreach($line in $confpathcont){
-                                                        $ai += 1
-                                                        if($line -ilike 'mobile.xstore.config.path.global.extensions*'){
-                                                            Write-log " : Line($ai) is holding the config.path.global.extensions."
-                                                                $arrno = 0
-                                                                        $linearr = @($line.Split(':'))
-                                                                            foreach($seg in $linearr){
-                                                                                $arrno += 1
-                                                                                        if($seg -ilike "hardware/*"){
-                                                                                            Write-log " : Replacing $seg with $replacewith."
-                                                                                            $global:replacewith = $replacewith.Trim()
-                                                                                            $seg = ""
-                                                                                            $seg = "$replacewith"
-                                
-                                                                                            $linearr[$arrno -1] = $seg
-                                                                                            $line = [string]$linearr -replace " ", ':'
-                                
-                                                                                            Write-log " : ($line) will now be written to config file"
-                                                                                            $confpathcont[$ai -1] = $line
-                                                                                            $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                                        }
-                                                                            }
-                                                        }
-                                        }
-    }else{
-        Write-Log " : ERROR - Cannot find $xstorebaseconfigloc. EXIT 1"
-        exit 1
-    }
-}
-
-#Set the JDK bin path in the Path var just for this session.
-Function Set-JDK-to-Path {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ADDING JDK TO THE PATH <<<"
-Write-Log "   "
-
-    #get path as array
-    $patharr = ($Env:PATH).Split(';')
-    
-    if($patharr -icontains "C:\Program Files\Java\jdk-$jdkver\bin"){
-    Write-log " : Path allready contains JDK version $jdkver Bin dir (C:\Program Files\Java\jdk-$jdkver\bin)."
-    }ELSE{
-    Write-log " : Adding C:\Program Files\Java\jdk-$jdkver\bin to path for THIS POWERSHELL SESSION ONLY."
-    $Env:PATH.TrimEnd(';')
-    $Env:PATH += ";C:\Program Files\Java\jdk-$jdkver\bin;"
-    }
-
-}
-
-#if xstore is running, this will close it.
-function close-xstore {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CLOSING XSTORE <<<"
-Write-Log "   "
-
-$xstoreanchors = @('C:\xstore\tmp\xstore.anchor','C:\xstore\tmp\dataserver.anchor','C:\environment\tmp\xenv_eng.anchor','C:\environment\tmp\xenv_ui.anchor','C:\xstore-mobile\tmp\xstore_mobile.anchor') 
-
-    if($autoclosexstore -eq "Yes" -or $autoclosexstore -eq "Y"){
-
-            if((Get-Process | Where-Object {$_.Processname -like "xstore*" -or $_.Processname -ilike "xenviro*" -or $_.Processname -ilike "xmobi*"}).count -gt "0"){
-
-                            write-Log " : Xstore Seems to be running, closing."
-                            ForEach ($o in $xstoreanchors) {
-
-                                if (Test-Path $o) {
-                                    Remove-Item $o -Force
-                                    write-Log " : $o has been deleted"
-                                }
-
-                                else {
-                                    write-Log " : $o doesn't exist"
-                                }
-
-            }
-        
-                            write-Log " : Sleeping for 30 secons to allow xstore to close." 
-                            Start-Sleep -Seconds 30
-
-                                if((Get-Process | Where-Object {$_.Processname -like "xstore*"}).count -gt "0"){
-
-                                    write-Log " : ERROR Xstore is still running, exit 1"
-                                    exit 1
-
-                                    }else{
-
-                                    write-Log  " : Xstore is not running."
-                                }
-            
-
-            }else{
-
-            write-Log  " : Xstore is not running, no need to do anything."
-
-    }
-
-        
-    }else{
-
-    write-Log  " : No Shutdown Requested. $YN recived."
-
-    }
-
-}
-
-#Unpacks a the hardware folder of $brand-config.jar ready for editing.
-function Test-Xstore-print-Req {
-    
-    #Clean up before Fresh Extraction.
-    Invoke-Cleanup
-
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ DEN-CONFIG.JAR DECOMPILE <<<"
-Write-Log "   "
-#May Aswell only extract the Jar file once, test to see if its required.
-    
-    if($isprintserver -ilike "Y*" -or $printclient -ilike "Y*" -or $ipreceptprtreq -ilike "Y*" -or $isbogstandard -ilike "Y*"){
-        Write-Log " : Xstore Print Configuration is required."
-
-                if(Test-Path -Path $hwconfigpath){
-                            Write-Log " : $hwconfigpath exists as specified."
-
-                            #backing up denconfig jar original
-                            Copy-Item -Path $hwconfigpath -Destination "$pathhw\$filenamehw.bak.$runid" -Force
-
-                            #unpack the hardware folder of the Jar file.
-                            Write-Log " : Unpacking $filenamehw"
-                            Start-Process 'Jar' -ArgumentList "-xvf $filenamehw hardware/" -WorkingDirectory $pathhw #Extract Hardware Folder
-                            Start-Process 'Jar' -ArgumentList "-xvf $filenamehw version1/" -WorkingDirectory $pathhw #Extract Version 1 folder
-                            Start-Sleep 20
-
-                }else{
-                Write-Log " : Printer Configuration not required."
-                }
-    }
-}
-
-#Cleans up
-function Invoke-Cleanup {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CLEANING UP <<<"
-Write-Log "   "
-
-        $filesToDelete = @("$pathhw\hardware","$pathhw\version1","C:\installXstore.cmd","C:\$brand\Scripts\installXstore-WithRebootCheck.ps1","C:\retaildata","C:\Staging","C:\MININT", "C:\data-loader.exe","C:\Failures.html")
-
-        foreach($item in $filesToDelete){
-                    Write-log " : Trying to clean up $item."
-                    Remove-Item -Path $item -Recurse -Force -ErrorAction SilentlyContinue
-                        if(test-path -Path $item){
-                            Write-log " : WARN - $item has not been deleted, manual deletion is required."
-                        }else{
-                            Write-log " : $item has been deleted or never existed."
-                        }
-        }
-}
-
-#re-compiles the $brand-config.jar once we have edited the files.
-function Invoke-Repack-Config-Jar {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ REPACKING THE JAR <<<"
-Write-Log "   "                    
-
-                    #Re-Pack hardware in to jar
-                    if(test-path -Path "$pathhw\hardware"){
-                            #Packing modified files back in to $brand-config.jar
-                            Write-log " : Repacking Jar at $pathhw\hardware"
-                            Start-Process 'Jar' -ArgumentList "-uf $filenamehw hardware/" -WorkingDirectory $pathhw
-                            Start-Sleep 10
-                    }else{
-                            Write-log " : $pathhw\hardware does not exsits, cannot Repack Jar."  
-                    }  
-                    
-                    #Re-Pack version1 Folder in to Jar
-                    if(test-path -Path "$pathhw\version1"){
-                            #Packing modified files back in to $brand-config.jar
-                            Write-log " : Repacking Jar at $pathhw\version1"
-                            Start-Process 'Jar' -ArgumentList "-uf $filenamehw version1/" -WorkingDirectory $pathhw
-                            Start-Sleep 10
-                    }else{
-                            Write-log " : $pathhw\version1 does not exsits, cannot Repack Jar."  
-                    }   
-}
-
-#Adds the config for this machine to be a xStore Print server
-Function Add-Print-Server-Xstore {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CONFIGURING XSTORE PRINT SHARE CLIENT <<<"
-Write-Log "   "
-
-        if(test-path -Path "$pathhw\hardware\$corrdirUSBServ"){
-            Write-Log " : $pathhw\hardware\$corrdirUSBServ exists, no need to create."
-            }else{
-            Write-Log " : $pathhw\hardware\$corrdirUSBServ does not exist, creating now."
-            New-Item -ItemType Directory -Path "$pathhw\hardware" -Name "$corrdirUSBServ" -Force
-            Copy-Item -Path ".\dependencies\xml\usb_share_config.xml" -Destination "$pathhw\hardware\$corrdirUSBServ\HardwareConfig.xml"
-            }
-
-            #Define the location of the correct configuration.
-            $configfile = "$pathhw\hardware\$corrdirUSBServ\HardwareConfig.xml"
-            
-            #If mobileconfig is empty then copy over default
-            $xmlfile = [XML](Get-Content $configfile)
-            if($xmlfile -eq $null -or $xmlfile -eq ""){Write-Log " : Checking to see if the hardware config is empty."
-
-                Write-Log " : Hardware config is empty, copying over default to location."
-                    Copy-Item -Path '.\xml\usb_share_config.xml' -Destination "$pathhw\hardware\$corrdirUSBServ" -Force
-                }
-
-                                        #creating element then moving to top of <hardware>
-                                        $rportnode = $xmlfile.hardware.AppendChild($xmlfile.CreateElement("PrintTargetFromRemote"))
-                                        $xmlfile.hardware.InsertBefore($rportnode, $xmlfile.Hardware.FirstChild)
-                                        $rportnode.SetAttribute("dtype","Integer")
-                                        $rportnode.AppendChild($xmlfile.CreateTextNode($psport)) | Out-Null
-
-                                                #creating element then moving to top of <hardware>
-                                                $sharenode = $xmlfile.hardware.AppendChild($xmlfile.CreateElement("RemotePrintPort"))
-                                                $xmlfile.hardware.InsertBefore($sharenode, $xmlfile.Hardware.FirstChild)
-                                                $sharenode.SetAttribute("dtype","string")
-                                                $sharenode.AppendChild($xmlfile.CreateTextNode("RECEIPT")) | Out-Null
-
-                                                        #The rest of the nodes are appended not moved.
-                                                        $devnode = $xmlfile.hardware.AppendChild($xmlfile.CreateElement("Device"))
-                                                        $devnode.SetAttribute("type","POSPrinter")
-                                                        $devnode.SetAttribute("use","RECEIPT")
-
-                                                            $enablednode = $devnode.AppendChild($xmlfile.CreateElement("Enabled"))
-                                                            $enablednode.SetAttribute("dtype","Boolean")
-                                                            $enablednode.AppendChild($xmlfile.CreateTextNode("True")) | Out-Null
-
-                                                                $namenode = $devnode.AppendChild($xmlfile.CreateElement("name"))
-                                                                $namenode.SetAttribute("dtype","String")
-                                                                $namenode.AppendChild($xmlfile.CreateTextNode("$jposprintstring")) | Out-Null
-
-                                                                    $codnode = $devnode.AppendChild($xmlfile.CreateElement("dtvClaimOnDemand"))
-                                                                    $codnode.SetAttribute("dtype","Boolean")
-                                                                    $codnode.AppendChild($xmlfile.CreateTextNode("True")) | Out-Null
-
-                                                                        #Saving final XML.
-                                                                        Write-Log " : Writing XML to $configfile"
-                                                                        $xmlfile.save($configfile)
-
-                                                                            #can mess up multipull runs if we dont despose of thease variables.
-                                                                            Remove-Variable devnode,devnode2,enablednode,enablednode2,namenode,namenode2,codnode,codnode2,sharenode,rportnode,xmlfile
-
-                        #Add the firewall rule if requested,
-                        if($fwreq -ieq "y" -or $fwreq -ieq "yes"){
-                
-                            New-NetFirewallRule -DisplayName "Xstore Printer Sharing IN" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort $psport -Protocol TCP
-                                
-                                $ConfiguredFWrules = (Get-NetFirewallRule -DisplayName *).DisplayName
-                                if($ConfiguredFWrules -icontains "Xstore Printer Sharing IN"){
-                                    Write-Log " : Firewall rule for print sharing was added (port $psport, TCP)"
-                                    $global:printshareconfw = 'Yes'
-                                }else{
-                                    Write-Log " : ERROR, Firewall rule for print sharing not found, please add manually (port $psport, TCP)."
-                                    $global:printshareconfw = 'ERROR'
-                                }
-                            
-                
-                            }else{
-
-                            Write-Log " : Firewall rule for print sharing was not added, returned with $fwreq"
-                        }
-        
-        #Set the hardware config path to this configuration.
-        Set-Hardware-Configpath -replacewith "hardware/$corrdirUSBServ"
-
-}
-
-#Adds the config for this machine to be a xstore Print server CLIENT
-Function Add-Printer-Share-Client {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CONFIGURING USB Printer Share <<<"
-Write-Log "   "
-
-            if(test-path -Path "$pathhw\hardware\$corrdirShareclient"){
-                Write-Log " : $pathhw\hardware\$corrdirShareclient exists, no need to create."
-            }else{
-                Write-Log " : $pathhw\hardware\$corrdirShareclient does not exist, creating now."
-                New-Item -ItemType Directory -Path "$pathhw\hardware" -Name "$corrdirShareclient" -Force
-                Copy-Item -Path ".\dependencies\xml\hwcfgdf.xml" -Destination "$pathhw\hardware\$corrdirShareclient\HardwareConfig.xml"
-            }
-
-            if($printclient -ilike "y*"){Write-Log " : XML config states that this is a network share printer client."
-            
-                    $jposprintstring = "Epson-Printer-XstoreSharing"
-
-                    #Backup v1Jpos.xml
-                    Copy-Item -Path $jposv1configpath -Destination "$pathjpv1\$filenamejpv1.bak.$runid"
-                    Write-Log " : Making Jpos Config Backup to $pathjpv1\$filenamejpv1.bak.$runid."
-
-                    $jposv1xml = [xml](Get-Content $jposv1configpath);
-                    Write-Log " : Reading in $jposv1configpath"
-
-                    #V1 jpos config.
-                    if($jposv1xml -eq $null){
-                        Write-Log " : JPOS config is empty, copying over default to location."
-                            Copy-Item -Path '.\xml\jpos.xml' -Destination $jposv1configpath -Force
-                    }
-
-                    #setup v1 jpos.xml
-                    #--- setting port
-                    Write-Log " : Changing Values in v1 Jpos.xml to ones stored in stage 2 var xml file."
-                    foreach ($node in ($jposv1xml.JposEntries.JposEntry | Where-Object {$_.logicalName -eq $jposprintstring})){
-                                foreach($hp in ($node.prop | Where-Object {$_.name -eq "hostPort"})){
-                                        $hp.SetAttribute("value", $psport)
-                                        $jposv1xml.Save($jposv1configpath)
-                                        Write-Log " : Set Host Port to $psport."
-                                            Start-Sleep 2
-                                        }
-                    }
-                    #--- setting host
-                    foreach ($node in ($jposv1xml.JposEntries.JposEntry | Where-Object {$_.logicalName -eq $jposprintstring})){
-                                foreach($hp in ($node.prop | Where-Object {$_.name -eq "host"})){
-                                        $hp.SetAttribute("value", "$pshost")
-                                        $jposv1xml.Save($jposv1configpath)
-                                        Write-Log " : Set Host name to $pshost."
-                                            Start-Sleep 2
-                                        }
-                    }
-            
-                    #setting up printer in hardwareconfig.xml
-                    #--- adding printer record to end of </device>
-
-                    $configfile = "$pathhw\hardware\$corrdirShareclient\HardwareConfig.xml"
-                    $xmlfile = [XML](Get-Content $configfile)
-                    if(Test-Path -Path $configfile){
-                        Write-Log " : $configfile exists."
-                                            
-                                            Write-Log " : Writing new device nodes."
-                                            $devnode = $xmlfile.hardware.AppendChild($xmlfile.CreateElement("Device"))
-                                            $devnode.SetAttribute("type","POSPrinter")
-                                            $devnode.SetAttribute("use","RECEIPT")
-
-                                                $enablednode = $devnode.AppendChild($xmlfile.CreateElement("Enabled"))
-                                                $enablednode.SetAttribute("dtype","Boolean")
-                                                $enablednode.AppendChild($xmlfile.CreateTextNode("True")) | Out-Null
-
-                                                $namenode = $devnode.AppendChild($xmlfile.CreateElement("name"))
-                                                $namenode.SetAttribute("dtype","String")
-                                                $namenode.AppendChild($xmlfile.CreateTextNode("$jposprintstring")) | Out-Null
-
-                                                                    $xmlfile.save($configfile)
-                                                                    Write-Log " : Writing XML to $configfile."
-
-                                                                        #can mess up multiple runs if we dont despose of thease variables.
-                                                                        Remove-Variable devnode,devnode2,enablednode,enablednode2,namenode,namenode2,xmlfile
-
-                                                                                #Set the hardware config path to this configuration.
-                                                                                Set-Hardware-Configpath -replacewith "hardware/$corrdirShareclient"
-
-                        }else{
-
-                        Write-Log " : ERROR, config file does not exist at $configfile."
-
-                        }
-
-                    
-
-                }else{
-
-                Write-Log " : XML config states that its not a shared print client"
-
-                }
-}
-
-#Configures the Ped IPs
-Function Set-Ped-IP {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CONFIGURING PED IP <<<"
-Write-Log "   "
-
-    Write-Log " : XML file states that there are $pednum PEDS in this store"
-    if($pednum -gt '0'){
-
-        #backingup Main Ocius config
-        Write-Log " : Backing up properties file to ($eftlinkdir\ocius.properties.bak.$runid)"
-        Copy-Item -Path "$eftlinkdir\ocius.properties" -Destination "$eftlinkdir\ocius.properties.bak.$runid" -Force
-
-            foreach($pedconf in 1..$pednum){
-                    
-                if(Test-Path -Path "$eftlinkdir\server$pedconf\ocius.properties"){
-                    
-                    #backingup ocius config file original
-                    Write-Log " : Backing up properties file to ($eftlinkdir\server$pedconf\ocius.properties.bak.$runid)"
-                    Copy-Item -Path "$eftlinkdir\server$pedconf\ocius.properties" -Destination "$eftlinkdir\server$pedconf\ocius.properties.bak.$runid" -Force
-                    
-
-                    $pedindconf = Get-Content -Path "$eftlinkdir\server$pedconf\ocius.properties"
-                    Write-Log " : Reading in config file located at ($eftlinkdir\server$pedconf\ocius.properties)"
-                        
-                        $pedip = Get-Variable -Name ("pedip"+$pedconf) -ValueOnly
-                        $ai = 0
-                        
-                                    foreach($line in $pedindconf){
-                            
-                                        $ai += 1
-
-                                        if($line -like "ip.address*"){
-                                        Write-Log " : Found IP address connfig, currently set to ($line)"
-
-                                            $currentipws = $line.split("=")[1]
-                                                $currentipws = $currentipws.Trim()
-                                                    Write-Log " : Current IP address set to $currentipws"
-                                                    Write-Log " : New IP address is to be set to $pedip"
-
-                                                $line = $line -replace "= ", "="
-                                                $line = $line -replace "ip.address =$currentipws", "ip.address = $pedip"
-                                    
-                                                Write-Log " : Writing $line to server$pedconf\ocius.properties"
-                                                $pedindconf[$ai-1] = $line
-                                    
-                                            }else{
-                                            #line is not ip address line.
-                                            }
-                                    }
-
-
-                            Write-Log " : Writing out new config file at $eftlinkdir\server$pedconf\ocius.properties"
-                            $pedindconf  | Set-Content "$eftlinkdir\server$pedconf\ocius.properties"
-
-                            $pedindconf = Get-Content -Path "$eftlinkdir\server$pedconf\ocius.properties"
-                            Write-Log " : Checking current IP config for $eftlinkdir\server$pedconf\ocius.properties."
-                                foreach($line in $pedindconf){
-                                if($line -like "ip.address*"){
-                                    $currentip = $line.split("=")[1]
-                                    Write-Log " : The new ip for server$pedconf is set to $currentip."
-                                    }
-                                }
-                        }else{
-                        "$eftlinkdir\server$pedconf\ocius.properties does not exist"
-                        }
-            }
-    }else{
-        Write-Log " : there are $pednum peds in this store, no configuration is required."
-    }
-}
-
-#Configure IP Recept Printer
-Function Set-IP-Recept-Printer {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CONFIGURING IP PRINTER <<<"
-Write-Log "   "
-
-            if(Test-Path -Path .\dependencies\properties\pcsprop.eth){
-                    
-
-                        #Editing base system.properties BASE -----------------------------
-                        #editing printer name
-                        $xstoresyspropcnt = Get-Content C:\xstore\updates\xstore.properties
-                        $linecnt = 0
-                        $corrline = 0
-                            foreach($ln in $xstoresyspropcnt){
-                                $linecnt += 1
-                                if($ln -ilike "den.ipprinter.name*"){
-                                    $corrline = $linecnt-1
-                                    $ln = $ln -ireplace ' ', ''
-                                    $currentipprtnm = ($ln.Split('=')[1])
-                                    $currentipprtnm = $currentipprtnm.Trim()
-                                        Write-Log " : Currently, the ip printer name configured is '$currentipprtnm', reconfiguring to '$ipprintjposstr' on line $corrline."
-                                        $ln = $ln.Replace("$currentipprtnm","$ipprintjposstr")
-                                        $xstoresyspropcnt[$corrline] = $ln
-                            
-                                }else{
-                                #thease are not the droids you are looking for.
-                                }
-                            }
-
-                        #edititing printer IP
-                        $linecnt = 0
-                        $corrline = 0
-                            foreach($ln in $xstoresyspropcnt){
-                                $linecnt += 1
-                                if($ln -ilike "den.ipprinter.host*"){
-                                    $corrline = $linecnt-1
-                                    $ln = $ln -ireplace ' ', ''
-                                    $currentip = ($ln.Split('=')[1])
-                                    $currentip = $currentip.Trim()
-                                        Write-Log " : Currently, the ip printer ip address configured is '$currentip', reconfiguring to '$receptprtip' on line $corrline."
-                                        $ln = $ln.Replace("$currentip","$receptprtip")
-                                        $xstoresyspropcnt[$corrline] = $ln
-                                        $xstoresyspropcnt | Set-Content C:\xstore\updates\xstore.properties
-                            
-                                }else{
-                                #thease are not the droids you are looking for.
-                                }
-                            }
-                        
-                        #SYSPROP for mobile -----------------------------
-                        if(test-path -path $xstoresyspropmob){
-                                $xstoresyspropcnt = Get-Content $xstoresyspropmob
-                                $linecnt = 0
-                                $corrline = 0
-                                    foreach($ln in $xstoresyspropcnt){
-                                        $linecnt += 1
-                                        if($ln -ilike "den.ipprinter.name*"){
-                                            $corrline = $linecnt-1
-                                            $ln = $ln -ireplace ' ', ''
-                                            $currentipprtnm = ($ln.Split('=')[1])
-                                            $currentipprtnm = $currentipprtnm.Trim()
-                                                Write-Log " : Currently, the ip printer name configured is '$currentipprtnm', reconfiguring to '$ipprintjposstr' on line $corrline."
-                                                $ln = $ln.Replace("$currentipprtnm","$ipprintjposstr")
-                                                $xstoresyspropcnt[$corrline] = $ln
-                            
-                                        }else{
-                                        #thease are not the droids you are looking for.
-                                        }
-                                    }
-
-                                        $linecnt = 0
-                                        $corrline = 0
-                                            foreach($ln in $xstoresyspropcnt){
-                                                $linecnt += 1
-                                                if($ln -ilike "den.ipprinter.host*"){
-                                                    $corrline = $linecnt-1
-                                                    $ln = $ln -ireplace ' ', ''
-                                                    $currentip = ($ln.Split('=')[1])
-                                                    $currentip = $currentip.Trim()
-                                                        Write-Log " : Currently, the ip printer ip address configured is '$currentip', reconfiguring to '$receptprtip' on line $corrline."
-                                                        $ln = $ln.Replace("$currentip","$receptprtip")
-                                                        $xstoresyspropcnt[$corrline] = $ln
-                                                        $xstoresyspropcnt | Set-Content $xstoresyspropmob
-                            
-                                }else{
-                                #thease are not the droids you are looking for.
-                                }
-                            }
-                        
-                        }else{
-                            write-log " : No Mobile configuration detected, not setting mobile hardware config IP."
-                        }
-
-
-                        #copy over correct pcs.properties file for ethernet printers.
-                        if(Test-Path -Path .\dependencies\properties\pcsprop.eth){
-
-                                #Copy over correct PCS.properties file (no need to edit).
-                                $sourceHash = (Get-FileHash -Path .\dependencies\properties\pcsprop.eth -Algorithm SHA512).Hash
-                                Write-Log " : hash for pcsprop.eth is $sourceHash"
-                                $destHash = (Get-FileHash -Path $pcsproppath -Algorithm SHA512).Hash
-                                Write-Log " : hash for $pcsproppath is $destHash"
-
-                                if($sourceHash -eq $destHash){
-                                    Write-Log " : No need to replace pcs.properties file, files are the same."
-                                }else{
-                                    Write-Log " : Replacing original pcs.properties file with the correct Ethernet file."
-                                    Copy-Item -Path .\dependencies\properties\pcsprop.eth -Destination $pcsproppath -force
-                                        if($sourceHash -eq (Get-FileHash -Path $pcsproppath -Algorithm SHA512).Hash){
-                                                Write-Log " : Ethernet PCS.properties file copy successfull, hashes match."
-                                                $PCSethernetedit = Get-Content -path $pcsproppath
-                                                Write-Log " : Editing pcs.properties with the correct IP of $receptprtip."
-                                                $PCSethernetedit = $PCSethernetedit -replace "printerip", "$receptprtip"
-                                                $PCSethernetedit | Set-Content -Path $pcsproppath -Force
-                                            
-                                            }else{
-                                                Write-Log " : ERROR - Ethernet PCS.properties file copy error, hashes do not match."
-                                            }
-                                }
-                        }
-
-
-    }else{
-        Write-Log " : ERROR - files for Ethernet receipt printing not found, printer not added."
-    }
-
-    #Updated to allow for cashdraws connected via IP printer kick port.
-    if($ipCashDrawConnected -ilike "y*"){
-        #Set the hardware config path to this configuration.
-        Set-Hardware-Configpath -replacewith "hardware/$ipCashHWPath"
-    }else{
-        #Set the hardware config path to this configuration.
-        Set-Hardware-Configpath -replacewith "hardware/$corrdirIPrecpt"
-    }
-}
-
-#Setup the a till with a usb receipt printer, nothing else. 
-Function set-standard-usb-setup {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ BOGSTANDARD USB PRINTER SETUP <<<"
-Write-Log "   "
-
-    if(Test-Path -Path ".\dependencies\properties\pcsprop.usb"){
-
-        #Copy over correct PCS.properties file (no need to edit).
-        $sourceHash = (Get-FileHash -Path ".\dependencies\properties\pcsprop.usb" -Algorithm SHA512).Hash
-        Write-Log " : hash for pcsprop.usb is $sourceHash"
-        $destHash = (Get-FileHash -Path $pcsproppath -Algorithm SHA512).Hash
-        Write-Log " : hash for $pcsproppath is $destHash"
-
-        if($sourceHash -eq $destHash){
-            Write-Log " : No need to replace pcs.properties file, files are the same."
         }else{
-            Write-Log " : Replacing original pcs.properties file with the correct USB file."
-            Copy-Item -Path ".\dependencies\properties\pcsprop.usb" -Destination $pcsproppath -force
-                if($sourceHash -eq (Get-FileHash -Path $pcsproppath -Algorithm SHA512).Hash){
-                        Write-Log " : USB PCS.properties file copy successfull, hashes match."
-                    }else{
-                        Write-Log " : ERROR - USB PCS.properties file copy error, hashes do not match."
-                    }
+                write-host "ERROR: Config file cannot be found at $configFileLocation " -BackgroundColor DarkGray -ForegroundColor Red
         }
 
-        #Set the hardware config path to this configuration.
-        Set-Hardware-Configpath -replacewith "hardware/$corrdirstdusb"
+        #Declare Configuration Variables.
+        #Script Configuration Variables.
+            $global:scriptLoggingPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "script.logging.path"}).Value;
+        #Brand Configuration Variables.
+            $global:brandChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.change"}).Value -eq "true")
+            $global:brandName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "brand.name"}).Value
+        #Store Number Configuration Variables.
+            $global:storeNumberChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.change"}).Value -eq "true")
+            $global:storeNumberNew = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "store.number.new"}).Value
+        #Park Retail Configuration Variables.
+            $global:parkRetailChange = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.change"}).Value -eq "true")
+            $global:parkRetailMap = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "park.retail.map.path"}).Value
+        #Automatic Windows Logon Configuration Variables.
+            $global:enableWindowsAutoLogon = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon"}).Value -eq "true")
+            $global:automaticWindowsLogonPassword = ConvertTo-SecureString -String $(($global:scriptConfiguration | Where-Object {$_.Property -ieq "auto.logon.password"}).Value) -AsPlainText -Force
+        #Printing Configuration
+            $global:changePrintingConfiguration = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.change"}).Value -eq "true")
+            $global:printingIsType= (($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.is.type"}).Value)
+            $global:printingIpAddress = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.address"}).Value
+            $global:printingEpsonConfigPcsPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.epson.config.pcs.path"}).Value
+            $global:printingIPJposName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.jposname"}).Value
+            $global:printingIPCashJposName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.ip.cashdrawer.jposname"}).Value
+            $global:printingUSBJposName = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "printer.usb.jposname"}).Value
+        #Peds Configuration
+            $global:changePedsConfiguration = (($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.change"}).Value -eq "true")
+            $global:amountOfPeds = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.amount"}).Value
+            $global:pedsIpAddress1 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.1"}).Value
+            $global:pedsIpAddress2 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.2"}).Value
+            $global:pedsIpAddress3 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.3"}).Value
+            $global:pedsIpAddress4 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.4"}).Value
+            $global:pedsIpAddress5 = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.ip.address.5"}).Value
+            $global:pedsEftlinkPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "peds.eftlink.path"}).Value
+        #XStore Configuration Variables.
+            $global:xstoreBaseConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.baseproperties.path"}).Value
+            $global:xstoreXenvBaseConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.xenvbaseconfig.path"}).Value
+            $global:xstoreSystemConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.systemproperties.path"}).Value
+            $global:xstorePropertiesConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.xstoreproperties.path"}).Value
+            $global:xstoreMobileConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.mobile.mobileproperties.path"}).Value
+            $global:xstoreMenuConfigPath = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.menu.path"}).Value
+            $global:xstoreDatabaseUserDtvPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.dtv.password"}).Value
+            $global:xstoreDatabaseUserSaPassword = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.user.sa.password"}).Value
+            $global:xstoreDatabaseSqlAdminGroupNames = @(($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.database.sqladmin.group.names"}).Value).split(",") | ForEach-Object { $_.Trim() }
+            $global:xstoreRequiredJdkVersion = ($global:scriptConfiguration | Where-Object {$_.Property -ieq "xstore.config.required.jdk.version"}).Value;
+}
+#Function to write to the log file.
+Function write-Log {
+        param(
+            [Parameter(Mandatory=$true)][String]$msg,
+            [Parameter(Mandatory=$true)][String]$type
+        )
 
-    }else{
-        Write-Log " : ERROR - files for USB receipt printing not found, printer not added."
+        # Get time of log action.
+        $global:logtime = get-date -Format "dd.MM.yy-HH.mm.ss"
+        $global:logFile = "$($global:scriptLoggingPath)\$runID-xstore-stage2-$($logFileDate).log"
+
+        # Write to correct logging file.
+        if($type -ilike "error"){
+                write-host $logtime '-' '[' $type ']' '-' $msg -ForegroundColor DarkRed -BackgroundColor red
+                Add-Content -Path $logFile -Value "$logtime - [$type] - $msg"
+        }elseif($type -ilike "warn"){
+                write-host $logtime '-' '[' $type ']' '-' $msg -ForegroundColor DarkYellow -BackgroundColor yellow
+                Add-Content -Path $logFile -Value "$logtime - [$type] - $msg"
+        }elseif($type -ilike "success"){
+                write-host $logtime '-' '[' $type ']' '-' $msg -ForegroundColor DarkGreen -BackgroundColor green
+                Add-Content -Path $logFile -Value "$logtime - [$type] - $msg"
+        }elseif($type -ilike "general"){
+                write-host $logtime '-' '[' $type ']' '-' $msg -ForegroundColor black -BackgroundColor white
+                Add-Content -Path $logFile -Value "$logtime - [$type] - $msg"
+        }elseif($type -ilike "debug"){
+                write-host $logtime '-' '[' $type ']' '-' $msg -ForegroundColor DarkBlue -BackgroundColor blue
+                Add-Content -Path $logFile -Value "$logtime - [-------- $type --------] - $msg"
+        }else{
+                write-host "Warning: Log type not defined correctly, options are error, warn, good, debug, general or general." -ForegroundColor DarkYellow -BackgroundColor yellow
+                write-host "FYI: logging path set to $logFile." -ForegroundColor black -BackgroundColor white
+        }
+}
+#Function to set the PATH variable, used for adding the JDK to the PATH.
+Function set-PathVariable {
+    param (
+        [string]$AddPath,
+        [string]$RemovePath,
+        [ValidateSet('Process', 'User', 'Machine')]
+        [string]$Scope
+        )
+
+    $regexPaths = @()
+    if ($PSBoundParameters.Keys -contains 'AddPath') {
+        $regexPaths += [regex]::Escape($AddPath)
     }
 
-}
+    if ($PSBoundParameters.Keys -contains 'RemovePath') {
+        $regexPaths += [regex]::Escape($RemovePath)
+    }
+    
+    $arrPath = [System.Environment]::GetEnvironmentVariable('PATH', $Scope) -split ';'
+    foreach ($path in $regexPaths) {
+        $arrPath = $arrPath | Where-Object { $_ -notMatch "^$path\\?" }
+    }
 
+    $value = ($arrPath + $addPath) -join ';'
+    if($debug -eq $true){
+        Write-Log -type "debug" -msg "Setting PATH variable to: $value"
+    }else{
+        Write-Log -type "general" -msg "Adding $AddPath to PATH variable in scope $Scope."
+    }
+    # Set the PATH variable in the specified scope.
+    [System.Environment]::SetEnvironmentVariable('PATH', $value, $Scope)
+
+    if([System.Environment]::GetEnvironmentVariable('PATH', $Scope) -match [regex]::Escape($AddPath)) {
+        Write-Log -type 'success' -msg "PATH variable has been set to include $AddPath in scope $Scope."
+        return $true;
+    }
+    else {
+        Write-Log -type 'error' -msg "PATH variable has not been set to include $AddPath in scope $Scope."
+        write-ErrorObjectForLater -functionName "set-PathVariable" -cause "PATH variable not set correctly" -errorMessage "PATH variable has not been set to include $AddPath in scope $Scope."
+        return $false;
+    }
+}
 #Set the firewall rule to allow remote SQL access
-Function Set-Remote-SQL-FWR {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ADDING SQL SHARE FIREWALL RULE <<<"
-Write-Log "   "
+Function set-SQLRemoteAccessFirewallRule {
+    #Add the firewall rule if requested,
+    New-NetFirewallRule -DisplayName "[xstore-stage-2] $global:brandName SQL Remote Access" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort 1433-1434 -Protocol TCP
 
-                        #Add the firewall rule if requested,
-                        if($sqlfwreq -ieq "y" -or $fwreq -ieq "yes"){
-                
-                            New-NetFirewallRule -DisplayName "$brand SQL Remote Access" -Direction inbound -Profile DOMAIN -Action Allow -LocalPort 1433-1434 -Protocol TCP
-                            
-                            Start-Sleep -Seconds 15
-
-                                $ConfiguredFWrules = (Get-NetFirewallRule -DisplayName *).DisplayName
-                                if($ConfiguredFWrules -icontains "$brand SQL Remote Access"){
-                                    Write-Log " : Firewall rule for Remote SQL access was added (port $psport, TCP) - CONFIRMED."
-                                    $global:sqlremotefw = 'Yes'
-                                }else{
-                                    Write-Log " : ERROR, firewall rule not found, please add manually (port $psport, TCP)."
-                                    $global:sqlremotefw = 'No'
-                                }
-                                            
-                            }else{
-
-                            Write-Log " : Firewall rule for Remote SQL access was not requested, returned with $sqlfwreq."
-                        }
-                        
+    #Check if the firewall rule was added.
+    Start-Sleep -Seconds 15
+    if(@((Get-NetFirewallRule -DisplayName *).DisplayName) -icontains "[xstore-stage-2] $global:brandName SQL Remote Access"){
+        Write-Log -type 'success' -msg "Firewall rule for Remote SQL access was added (port 1433-1434, TCP) - CONFIRMED."
+        return $true;
+    }else{
+        Write-Log -type 'error' -msg "Firewall rule not found, please add manually (port 1433-1434, TCP)."
+        return $false;
+    }
 }
-
 #Take a restore point prior to modification
 Function get-Snapshot {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ TAKING SYSTEM RESTORE IMAGE <<<"
-Write-Log "   "
-
 $takendate = @{Label="Date"; Expression={$_.ConvertToDateTime($_.CreationTime)}}
 $lastTakenDate = (Get-ComputerRestorePoint | Select-Object -Property $takendate, SequenceNumber, Description  -last 1 | Sort-Object -Property SequenceNumber -Descending).Date
-$cannotTakeSS = $null
+$ssDateStamp = Get-Date -Format "dd.MM.yy-HH.mm.ss"
 
-if($lastTakenDate -gt (Get-Date).AddDays(-1)){
+if($null -eq $lastTakenDate){
 
-    write-log " : A Restore point has allready been taken, cannot take another."
-    $cannotTakeSS = $true
-
-}elseif($null -eq $lastTakenDate){
-
-    write-log " : WARN - Cannot gate date of last system restore point, attempting to take one."
-
-    $restdate = Get-date -Format 'ddMMyy'
-    Write-Log " : Generating Windows System Restore point."
-    Checkpoint-Computer -Description "Before-$brand-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
-
-    Write-Log " : Sleeping for 45 seconds."
+    write-log -type 'warn' -msg "Cannot get date of last system restore point, attempting to take one."
+    Checkpoint-Computer -Description "[xstore-stage-2] $brand-before-stage2-$ssDateStamp" -RestorePointType "MODIFY_SETTINGS"
     Start-Sleep -Seconds 45
+
+}elseif($lastTakenDate -gt (Get-Date).AddDays(-1)){
+
+    write-log -type 'warn' -msg "A Restore point has already been taken in the last 24 hours, cannot take another (last taken $lastTakenDate)."
+    $cannotTakeSS = $true
 
 }else{
 
-    $restdate = Get-date -Format 'ddMMyy'
-    Write-Log " : Generating Windows System Restore point."
-    Checkpoint-Computer -Description "Before-$brand-Xstore-Stage2-$restdate" -RestorePointType "MODIFY_SETTINGS"
-
-    Write-Log " : Sleeping for 45 seconds."
+    Write-Log -type 'general' -msg "Generating Windows System Restore point."
+    Checkpoint-Computer -Description "[xstore-stage-2] $brand-before-stage2-$ssDateStamp" -RestorePointType "MODIFY_SETTINGS"
     Start-Sleep -Seconds 45
 }
 
     #Check status of system restore point.
-    $lastreststatus = Get-ComputerRestorePoint -LastStatus
-    Write-Log " : Last restore point status = $lastreststatus"
+    Write-Log -type 'general' -msg "Last restore point status - $(Get-ComputerRestorePoint -LastStatus)"
 
-    $checkforresttore = (Get-ComputerRestorePoint).Description
-    if($checkforresttore -icontains "Before-$brand-Xstore-Stage2-$restdate"){
-            Write-Log " : SUCCESS, the restore point has been taken."
-        }elseif($true -eq $cannotTakeSS){
-            Write-Log " : WARN, snapshot cannot be taken, a restore point has allready been taken."
-        }else{
-            Write-Log " : ERROR, the restore point has not been taken. Exit 1."
-        exit 1
+    #Check if the restore point was taken.
+    if(@((Get-ComputerRestorePoint).Description) -icontains "[xstore-stage-2] $brand-before-stage2-$ssDateStamp"){
+        Write-Log -type 'success' -msg "A restore point has been taken before making any changes."
+        return $true;
+    }elseif($true -eq $cannotTakeSS){
+        write-ErrorObjectForLater -functionName "get-Snapshot" -cause "Cannot take snapshot" -errorMessage "A restore point has already been taken, cannot take another."
+        Write-Log -type 'error' -msg "Snapshot cannot be taken, a restore point has allready been taken."
+        return $false;
+    }else{
+        Write-Log -type 'error' -msg "The restore point has not been taken."
+        write-ErrorObjectForLater -functionName "get-Snapshot" -cause "After checking the restore points we cannot find one with the correct name" -errorMessage "The restore point has not been taken."
+            $snapShotContinue = Read-Host -Prompt "Do you want to continue without a restore point? (Y/N)"
+            if($snapShotContinue -ilike "y*"){
+                Write-Log -type 'warn' -msg "Continuing without a restore point."
+                return $false;
+            }else{
+                Write-Log -type 'error' -msg "Cannot continue without a restore point. (exit 1)"
+                return $false;
+                exit 1
+            }
+    }
+}
+#Function to create an error object for later use.
+Function write-ErrorObjectForLater {
+    param(
+        [Parameter(Mandatory=$true)][string]$functionName,
+        [Parameter(Mandatory=$true)][string]$cause,
+        [Parameter(Mandatory=$true)][string]$errorMessage
+    )
+    
+    # Add the error object to the global error object array.
+    $global:scriptErrorObject += New-Object psobject -Property @{
+        FunctionName = $functionName;
+        Cause = $cause;
+        ErrorMessage = $errorMessage;
+        timestamp = (Get-Date -Format "dd.MM.yy-HH.mm.ss");
+        }
+
+        Write-Log -type "error" -msg "Adding error for later - $functionName - $cause - $errorMessage"
+
+}
+#Runs xstore / xenviroment configuration bat files. 
+Function invoke-xStoreConfigurationBats {
+    $configBatNames = @("baseconfigure.bat","configure.bat","mobile_baseconfigure.bat","mobile_configure.bat");
+    $ConfigBatPaths = @("c:\xstore", "c:\xstore-mobile", "c:\xenvironment");
+    Get-ChildItem -path $ConfigBatPaths -Include $configBatNames | foreach-object {
+            Write-Log " : $($_.FullName) has been found, running."
+            Start-Process "cmd.exe" -ArgumentList "/c $($_.FullName)" -Wait
+            Start-Sleep -Seconds 5
+    }
+
+}
+#Function to enable Windows Auto Logon.
+Function invoke-AutoLogon {
+    if($global:enableWindowsAutoLogon -eq $false){
+        Write-Log -type 'general' -msg "Automatic windows logon was not requested ($global:enableWindowsAutoLogon), skipping."
+    }elseif($global:enableWindowsAutoLogon -eq $true){
+        #Get the domain name and convert to upper case.
+        $domain = (((Get-CIMInstance CIM_ComputerSystem).domain).split('.')[0]).ToUpper();
+        Write-Log -type 'general' -msg "Using the following for auto logon, username: $domain\$env:USERNAME password: $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText)."
+
+        #write the values
+        $autoLogonRegPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+            Set-ItemProperty $autoLogonRegPath 'AutoAdminLogon' -Value "1" -Type String -Force
+            Set-ItemProperty $autoLogonRegPath 'DefaultUsername' -Value "\$env:USERNAME" -type String -Force
+            Set-ItemProperty $autoLogonRegPath 'DefaultPassword' -Value $global:automaticWindowsLogonPassword -type String -Force
+            Remove-ItemProperty $autoLogonRegPath 'AutoLogonCount' -ErrorAction SilentlyContinue;
+            if(Test-Path -path "C:\$global:brandName\Autologon64.exe"){
+                try{
+                    #attempting to set up autologn with autologon64.exe
+                    Start-Process -FilePath "C:\$global:brandName\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $(ConvertFrom-SecureString -SecureString $global:automaticWindowsLogonPassword -AsPlainText) -wait;
+                }catch{
+                    write-ErrorObjectForLater -functionName "invoke-AutoLogon" -cause "Autologon64.exe failed to run" -errorMessage "Autologon64.exe failed to run, please check the path and the arguments (error: $($error[0].Exception.Message))"
+                }
+            }else{
+                write-ErrorObjectForLater -functionName "invoke-AutoLogon" -cause "Autologon64.exe not found" -errorMessage "Cannot find Autologon64.exe in C:\$global:brandName\Autologon64.exe, please check the path."
+            }
+    }
+}
+#Add users to db administrators
+Function add-dbAdminToLocalDBRemoteUsers {
+
+$denbySQLAdminsGroup = @($global:xstoreDatabaseSqlAdminDomain, $global:xstoreDatabaseSqlAdminGroupName) -join "\";
+$addDenbySQLAdmins = @"
+    USE [master]
+    GO
+    CREATE LOGIN [$denbySQLAdminsGroup] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+    GO
+    ALTER SERVER ROLE [sysadmin] ADD MEMBER [$denbySQLAdminsGroup]
+    GO
+    USE [xstore]
+    GO
+    CREATE USER [$denbySQLAdminsGroup] FOR LOGIN [$denbySQLAdminsGroup]
+    GO
+    USE [xstore]
+    GO
+    ALTER ROLE [db_owner] ADD MEMBER [$denbySQLAdminsGroup]
+    GO
+"@
+$checkDenbySQLAdmins = @"
+select sp.name as login,
+       sp.type_desc as login_type,
+       case when sp.is_disabled = 1 then 'Disabled'
+            else 'Enabled' end as status
+from sys.server_principals sp
+left join sys.sql_logins sl
+          on sp.principal_id = sl.principal_id
+where sp.type not in ('R','C')
+order by sp.name;
+"@
+
+    If(((Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count) -gt '0'){
+            if((@(Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $checkDenbySQLAdmins).login) -icontains $denbySQLAdminsGroup){
+                Write-Log -type 'warn' -msg "SQL server allready contains $denbySQLAdminsGroup, no action has been taken."
+            }else{
+                    Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $addDenbySQLAdmins | out-null
+                    Start-Sleep -Seconds 20
+                            if(@((Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $checkDenbySQLAdmins).login) -icontains $denbySQLAdminsGroup){
+                                Write-Log -type 'success' -msg "Confirming that $global:xstoreDatabaseSqlAdminGroupName has been added to the users that can logon remotely."
+                            }else{
+                                Write-Log -type 'error' -msg "$denbySQLAdminsGroup has not been added to the database."
+                                write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "SQL admin group not added" -errorMessage "$denbySQLAdminsGroup has not been added to the database, please check the SQL server is running and the credentials are correct."
+                            }
+            }
+    }else{
+        Write-Log -type 'error' -msg "Cannot detect running SQL server."
+        write-ErrorObjectForLater -functionName "add-dbAdminToLocalDBRemoteUsers" -cause "Cannot detect running SQL server" -errorMessage "Cannot detect running SQL server, therefor unable to add $denbySQLAdminsGroup to the database."
+    }
+}
+#Function to get the Epson Ephemeral Port from the pcs.properties file.
+#This will be used to determine the ethernet port for the Epson printer.
+Function update-epsonEphemeralPortConfiguration {
+        #Backup current pcs.properties file
+        if(invoke-ConfigFileBackup -configFileLocation $global:printingEpsonConfigPcsPath){
+
+        write-Log -type 'general' -msg "Getting Epson Ephemeral Port from pcs.properties file."
+        #Count the number of enteries in the pcs propterties file
+        $pcspropxml = [xml](get-content -Path $global:printingEpsonConfigPcsPath)
+        $global:numofeffport = ($pcspropxml.xmlroot.type.Value | Where-Object {$_ -ilike "ESDPRT*"}).Count
+
+        #Get variables for later use.
+        foreach($pscPort in ($pcspropxml.xmlroot.type)){
+            foreach($prop in $pscPort.property | Where-Object {$_.ID -ieq "PortName"}){
+                    if($prop.value -ilike "*usb*"){
+                        write-log -type 'general' -msg "$($pscPort.value) is of the type USB, ($($prop.value)).";
+                    }else{
+                        if($prop.value -ieq '${ipprinter}'){
+                            write-log -type 'general' -msg "$($pscPort.value) is of the type Ethernet, ($($prop.value)) and is configure with the OLR variable ipprinter.";
+                        }else{
+                                if([System.Net.IPAddress]::TryParse($prop.value, [ref]$null)){
+                                    write-log -type 'general' -msg "$($pscPort.value) is of the type Ethernet and is configured with an IP address, ($($prop.value)).";
+                                    if($global:printingIsIp -eq $true -or $global:printingIsIpCashDrawer -eq $true){
+                                        if($global:printingIpAddress -eq $prop.value){
+                                            Write-Log -type 'general' -msg " : $($global:ethernetportval) has been detected as an ethernet printer @ $($global:pcpropnetportval)."
+                                        }else{
+                                            Write-Log -type 'warn' -msg "The IP address configured in the pcs.properties file is not correct ($($prop.value)) This needs to be corrected."
+                                            $prop.value = $global:printingIpAddress
+                                            $pcspropxml.Save($global:printingEpsonConfigPcsPath)
+
+                                            # Reload XML from disk to verify
+                                            [xml]$verifyXml = Get-Content -Path $global:printingEpsonConfigPcsPath
+                                            $verified = $false
+                                            foreach ($pscPort in $verifyXml.xmlroot.type) {
+                                                foreach ($verifyProp in $pscPort.property | Where-Object { $_.ID -ieq "PortName" }) {
+                                                    if ($verifyProp.value -eq $global:printingIpAddress) {
+                                                        $verified = $true
+                                                        break
+                                                    }
+                                                }
+                                                if ($verified) { break }
+                                            }
+
+                                            if ($verified) {
+                                                Write-Log -type 'success' -msg "$($global:printingIpAddress) has been confirmed as the new IP address for the Epson printer in pcs.properties file."
+                                                return $true;
+                                            } else {
+                                                Write-Log -type 'error' -msg "Failed to verify the IP address update in pcs.properties file."
+                                                write-ErrorObjectForLater -functionName "get-epsonEphemeralPortConfiguration" -cause "Verification failed" -errorMessage "The IP address update could not be verified in the pcs.properties file."
+                                                return $false;
+                                            }
+                                        }
+                                    }
+                                }else{
+                                    Write-Log -type 'warn' -msg "$($pscPort.value) is not a valid IP address."
+                                }
+                        }
+                    }
+            }
+        }
+    }else{
+        Write-Log -type 'error' -msg "Failed to backup config file at $global:printingEpsonConfigPcsPath."
+    }
+}
+#Function to backup files within the same folder as the original file.
+#Must feed full path to the backup file $($file.Fullname).
+Function invoke-ConfigFileBackup {
+           param(
+            [string]$configFileLocation=(throw 'configFile is required (full name).')
+        )
+    #Check if the config file exists.
+    if(!(Test-Path -path $configFileLocation)){
+        write-ErrorObjectForLater -functionName "invoke-ConfigFileBackup" -cause "Backup target file not found." -errorMessage "The config file at $configFileLocation cannot be found, please check the path."
+        Write-Log -type 'error' -msg "The config file at $configFileLocation cannot be found, please check the path. (exit 1)"
+        exit 1;
+    }else{
+        Write-Log -type 'general' -msg "Backing up config file at $configFileLocation."
+
+            $BackupDateTimeStamp = Get-Date -Format "dd.MM.yy-HH.mm.ss";
+            $backupName = ($configFileLocation.split("\")) | Select-Object -Last 1;
+            $backupPath = ($configFileLocation.split("\") | Select-Object -SkipLast 1) -join "\";
+            $backupHash = (get-filehash -Path $configFileLocation -Algorithm SHA256).hash;
+            $backupFileName = "$backupName.$runID.$BackupDateTimeStamp.backup";
+            $backupDestenation = Join-Path -Path $backupPath -ChildPath $backupFileName;
+
+                        $global:FileBackups += New-Object psobject -Property @{
+                                Name = $backupName;
+                                Path = $backupPath;
+                                BackupDateTimeStamp = $BackupDateTimeStamp;
+                                OriginalHash = $backupHash;
+                                CopyHash = $null;
+                                BackupName = $backupFileName;
+                                BackupState = $null;
+                                BackupLocation = $backupDestenation;
+                            }
+
+            #Backup current config file
+            Copy-Item -Path $configFileLocation -Destination $backupDestenation -Force;
+            $copyHash = (get-filehash -Path $backupDestenation -Algorithm SHA256).hash;
+
+            if($copyHash -eq ($global:FileBackups | Where-Object {$_.BackupName -eq $backupFileName}).OriginalHash){
+                $backupObj = $global:FileBackups | Where-Object { $_.BackupName -eq $backupFileName }
+                if ($backupObj) {
+                    $backupObj.CopyHash = $copyHash
+                    $backupObj.BackupState = "Success";
+                }
+                Write-Log -type 'success' -msg "Backup file $backupFileName has been created successfully at $backupDestenation."
+                return $true;
+            }else{
+                $backupObj = $global:FileBackups | Where-Object { $_.BackupName -eq $backupFileName }
+                if ($backupObj) {
+                    $backupObj.CopyHash = $copyHash
+                    $backupObj.BackupState = "Failed";
+                }
+                write-ErrorObjectForLater -functionName "invoke-ConfigFileBackup" -cause "Backup file hash does not match original" -errorMessage "The backup file hash does not match the original file hash, please check the file integrity."
+                Write-Log -type 'error' -msg "Backup file hash does not match original file hash, please check the file integrity. (exit 1)"
+                return $false;
+            }
         }
 }
-
-#Runs xstore / xenviroment configuration bat files. 
-Function set-xstore-final {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RUNNING XSTORE AND ENV CONFIG BATS <<<"
-Write-Log "   "
-    
-    Write-Log " : Running xenvironments configuration scripts."
-    $configScripts = @("c:\environment\configure.bat","c:\xstore\baseconfigure.bat","c:\xstore\configure.bat","C:\xstore-mobile\mobile_baseconfigure.bat","C:\xstore-mobile\mobile_configure.bat")
-
-    Foreach($script in $configScripts){
-        Write-Log " : Sleeping for 15 seconds."
-        Start-Sleep -Seconds 15
-        if(test-path -Path $script){
-            Write-Log " : $script has been found, running."
-            Start-Process "cmd.exe" -ArgumentList "/c $script" -Wait
+#Function to configure the IP printer in the xstore config files.
+#This will modify the den.ipprinter.name and den.ipprinter.host properties in the config files.
+Function invoke-ipPrinterConfiguration {
+        param(
+        [Parameter(Mandatory=$true)][string]$printerName,
+        [Parameter(Mandatory=$true)][string]$printerIPAddress
+    )
+    Foreach($config in @($global:xstoreSystemConfigPath, $global:xstoreMobileConfigPath, $global:xstorePropertiesConfigPath)){
+        if(!(Test-Path -path $config)){
+            Write-Log -type 'warn' -msg "The config file at $config cannot be found, this may be expected depending on the config file."
         }else{
-            Write-Log " : WARN - $script cannot be found."
+            Write-Log -type 'general' -msg "Config file at $config found, proceeding with ip printer configuration."
+                if(invoke-ConfigFileBackup -configFileLocation $config){
+                $lnCnt = 0;
+                $tgtLn = $null;
+                $propFileContent = Get-Content $config;
+                    foreach($ln in $propFileContent){
+                        $lnCnt ++;
+                        if($ln -ilike "den.ipprinter.name*"){
+                            $tgtLn = $lnCnt - 1
+                            $ln = ($ln.trim() -ireplace ' ', '')
+                            $currentPrinterName = ($ln.Split('=')[1]).trim();
+                                Write-Log -type 'general' -msg "Currently, the ip printer name configured is '$currentPrinterName', reconfiguring to '$global:printingEpsonJposName' on line $tgtLn."
+                                $ln = $ln.Replace($currentPrinterName, $printerName)
+                                $propFileContent[$tgtLn] = $ln
+                        }elseif($ln -ilike "den.ipprinter.host*"){
+                            $tgtLn = $lnCnt - 1
+                            $ln = ($ln.trim() -ireplace ' ', '')
+                            $currentPrinterIp = ($ln.Split('=')[1]).trim();
+                                Write-Log -type 'general' -msg "Currently, the ip printer ip address configured is '$currentPrinterIp', reconfiguring to '$printerIPAddress' on line $tgtLn."
+                                $ln = $ln.Replace($currentPrinterIp, $printerIPAddress)
+                                $propFileContent[$tgtLn] = $ln
+                        }
+                    }
+                #Write the modified content back to the config file.
+                Set-Content -Path $config -Value $propFileContent -Force;
+            }else{
+                Write-Log -type 'error' -msg "Cannot backup config file at $config, exiting."
+                write-ErrorObjectForLater -functionName "invoke-ipPrinterConfiguration" -cause "Config file backup failed" -errorMessage "Cannot backup config file at $config, exiting."
+                exit 1;
+            }
         }
     }
 
 }
+#Parse and edit the configpath.
+Function set-reconfiguredConfigPath {
+    param(
+        [ValidateSet('denby', 'burleigh')]
+        [Parameter(Mandatory=$true)][string]$Brand,
+        [ValidateSet('terminal', 'terminalip', 'terminalipcashdraw')]
+        [Parameter(Mandatory=$true)][string]$hardwarePath
+    )
 
-#Changes the store number
-Function set-store-number {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CHANGING STORE NUMBER <<<"
-Write-Log "   "
-
-        Write-Log " : Changing Store Numbers."
-
-        Write-Log " : Backing up original configurations."
-        Copy-Item -Path $xstorebaseconfigloc -Destination "$pathbxs\$filenamebxs.bac.$runid" -Force
-            Start-Sleep -Seconds 15 
-            if(Test-Path -Path "$pathbxs\$filenamebxs.bac.$runid"){
-                Write-Log " : Backup of $xstorebaseconfigloc confirmed."
-            }else{
-                Write-Log " : ERROR Backup of $xstorebaseconfigloc not completed, Exit 1."
-                exit 1
+    foreach($config in @($global:xstoreBaseConfigPath)){
+        if(!(test-path -Path $config)){
+            Write-Log -type 'warn' -msg "The config file at $config cannot be found, this may be expected depending on the config file."
+        }else{
+            Write-Log -type 'general' -msg "Config file at $config found, proceeding with reconfiguration of the config path."
+            invoke-ConfigFileBackup -configFileLocation $config;
+            $configPathContent = Get-Content -Path $config;
+            $lnCnt = 0;
+            $tgtLn = $null;
+            foreach($line in $configPathContent){
+                if($line -ilike "xstore.config.path.global.extensions*"){
+                    $tgtLn = $lnCnt
+                    write-Log -type 'general' -msg "Line $tgtLn contains the xstore.config.path.global.extensions, reconfiguring."
+                    foreach($segment in ($line.Split(':'))){
+                        if($segment -ilike "hardware/*"){
+                            $hwSegmentOld = $segment;
+                            $hwSegmentNew = "hardware", $hardwarePath -join "/";
+                            Write-Log -type 'general' -msg "Line $lnCnt contains the hardware path, replacing with $hardwarePath."
+                            $line = $line.Replace($hwSegmentOld, $hwSegmentNew);
+                        }elseIf($segment -ilike "brand/*"){
+                            $brandSegmentOld = $segment;
+                            $brandSegmentNew = "brand", $Brand -join "/";
+                            Write-Log -type 'general' -msg "Line $lnCnt contains the brand path, replacing with $Brand."
+                            $line = $line.Replace($brandSegmentOld, $brandSegmentNew);
+                        }
+                    }
+                }elseif($line -ilike "mobile.xstore.config.path.global.extensions*"){
+                    $tgtLn = $lnCnt
+                    write-Log -type 'general' -msg "Line $tgtLn contains the mobile.xstore.config.path.global.extensions, reconfiguring."
+                    foreach($segment in ($line.Split(':'))){
+                        if($segment -ilike "hardware/*"){
+                            $hwSegmentOld = $segment;
+                            $hwSegmentNew = "hardware", $hardwarePath -join "/";
+                            Write-Log -type 'general' -msg "Line $lnCnt contains the hardware path, replacing with $hardwarePath."
+                            $line = $line.Replace($hwSegmentOld, $hwSegmentNew);
+                        }elseIf($segment -ilike "brand/*"){
+                            $brandSegmentOld = $segment;
+                            $brandSegmentNew = "brand", $Brand -join "/";
+                            Write-Log -type 'general' -msg "Line $lnCnt contains the brand path, replacing with $Brand."
+                            $line = $line.Replace($brandSegmentOld, $brandSegmentNew);
+                        }
+                    }
+                }
+            $lnCnt ++;
             }
+            #Write the modified content back to the config file.
+            Set-Content -Path $config -Value $configPathContent -Force;
+        }
+    }
+}
+#Function to modify config files that are key value separated by = like property files.
+Function invoke-propertyFileValueChange {
+            param(
+    [Parameter(Mandatory=$true)][string]$configFileLocation,
+    [Parameter(Mandatory=$true)][int]$changeValueTo,
+    [Parameter(Mandatory=$true)][string]$lineMask
+)
+    if(test-path -Path $configFileLocation){
+        invoke-ConfigFileBackup -configFileLocation $configFileLocation;
+        write-log -type 'general' -msg "Modifying $configFileLocation to change $lineMask to $changeValueTo.";
 
-
-        Copy-Item -Path $xenvironbaseconfigloc -Destination "$pathenv\$filenameenv.bac.$runid"
-            Start-Sleep -Seconds 15 
-            if(Test-Path -Path "$pathenv\$filenameenv.bac.$runid"){
-                Write-Log " : Backup of $xenvironbaseconfigloc confirmed."
-            }else{
-                Write-Log " : ERROR Backup of $xenvironbaseconfigloc not completed, Exit 1."
-                exit 1
+        $configFileContent = Get-Content -Path $configFileLocation;
+        $ln = 0
+        foreach ($line in $configFileContent) {
+            if ($line -ilike "$lineMask*") {
+                $line = $line -ireplace " ", ""
+                $currentStore = $line.Split('=')[1]
+                $currentStore = $currentStore.Trim()
+                $line = $line -ireplace "$lineMask=$currentStore", "$lineMask=$changeValueTo"
+                $line = $line -ireplace "=", " = "
+                $configFileContent[$ln] = $line
+                $configFileContent | Set-Content -Path $configFileLocation
             }
+            $ln++
+        }
         
-        Write-Log " : Backups Complete."
-        Write-Log " : ---- Modiftying $xstorebaseconfigloc."
+        # Sleeping to ensure writing of config file is complete. 
+        Start-Sleep -Seconds 5;
 
-        $xstorebasefile = get-content -Path $xstorebaseconfigloc
-        $linenum = 0
-
-        foreach($line in $xstorebasefile){
-            $linenum += 1
-            if($line -ilike 'dtv.location.StoreNumber*'){
-            Write-Log " : Store number is located on $linenum @ $xstorebaseconfigloc."
-            $line = $line -ireplace " ", ""
-            $currentstore = $line.Split('=')[1]
-            $currentstore = $currentstore.Trim()
-            Write-Log " : Replacing old store number ($currentstore) with new store number ($newstorenum)."
-            $line = $line -ireplace "dtv.location.StoreNumber=$currentstore", "dtv.location.StoreNumber=$newstorenum"
-            $xstorebasefile[$linenum-1] = $line
-                
-                Write-Log " : Writing changes to $xstorebaseconfigloc."
-                $xstorebasefile  | Set-Content $xstorebaseconfigloc
-
-            }else{
-            #is not the correct line
-            }    
+        $configFileContentReRead = Get-Content -Path $configFileLocation;        
+        foreach ($line in $configFileContentReRead) {
+            if ($line -ilike "$lineMask*") {
+                $lineReReadValue = $line;
+            }
         }
 
-        Write-Log " : ---- Modiftying $xenvironbaseconfigloc."
-
-        $xenvbasefile = get-content -Path $xenvironbaseconfigloc
-        $linenum = 0
-
-        foreach($line in $xenvbasefile){
-            $linenum += 1
-            if($line -ilike 'installx.rtlLocId*'){
-            Write-Log " : Store number is located on $linenum @ $xenvironbaseconfigloc."
-            $line = $line -ireplace " ", ""
-            $currentstore = $line.Split('=')[1]
-            $currentstore = $currentstore.Trim()
-            Write-Log " : Replacing old store number ($currentstore) with new store number ($newstorenum)."
-            $line = $line -ireplace "installx.rtlLocId=$currentstore", "installx.rtlLocId=$newstorenum"
-            $xenvbasefile[$linenum-1] = $line
-                
-                Write-Log " : Writing changes to $xenvironbaseconfigloc."
-                $xenvbasefile | Set-Content $xenvironbaseconfigloc
-
-            }else{
-            #is not the correct line
-            }    
+        if($lineReReadValue -ilike "$lineMask = $changeValueTo"){
+            Write-Log -type 'success' -msg "The $lineMask has been changed to $changeValueTo in $configFileLocation."
+            return $true;
+        }else{
+            Write-Log -type 'error' -msg "The $lineMask was not changed to $changeValueTo in $configFileLocation on re-read of the file."
+            write-ErrorObjectForLater -functionName 'invoke-propertyFileValueChange' -cause "When tested the modifications requested ($lineMask = $changeValueTo) were not actually written to the file, please check $configFileLocation manually." -errorMessage "The $lineMask was not changed to $changeValueTo in $configFileLocation on re-read of the file.";
+            return $false;
         }
+    }else{
+            Write-Log -type 'error' -msg "$configFileLocation does not exist, exit 1."
+            write-ErrorObjectForLater -functionName 'invoke-propertyFileValueChange' -cause "$configFileLocation does not seem to exist." -errorMessage "$configFileLocation does not exist, exit 1.";
+            exit 1;
+    }
         
+}
+#Function to invoke store number change.
+Function invoke-storeNumberChange {
+    param(
+        [Parameter(Mandatory=$true)][int]$storeNumber
+    )
+    if($global:storeNumberChange -eq $true){
+        write-log -msg general -msg "Store number change requested ($global:storeNumberChange), proceeding with store number change to $storeNumber."
+        #Make the store number changes in the configuration files.
+        invoke-propertyFileValueChange -configFileLocation $global:xstoreBaseConfigPath -changeValueTo $storeNumber -lineMask 'dtv.location.StoreNumber'
+        invoke-propertyFileValueChange -configFileLocation $global:xstoreXenvBaseConfigPath -changeValueTo $storeNumber -lineMask 'installx.rtlLocId'
+
         #Correction to store number change by OLR
-        Start-Process 'sqlcmd' -ArgumentList "-S localhost -U dtv -P $dvtdbuserpass -v OrgID=1 StoreID=$newstorenum CountryID='GB' CurrencyID='GBP' -i C:\xstore\database\ClientData.sql -o $logDIR\SQLChangeStoreNumberOutput.$runid.log"
+        write-Log -type 'general' -msg "Changing store number using ClientData.sql file to $storeNumber, log output is at $global:scriptLoggingPath\$runid-SQLChangeStoreNumberOutput.log."
+        Start-Process 'sqlcmd' -ArgumentList "-S localhost -U dtv -P $global:xstoreDatabaseUserDtvPassword -v OrgID=1 StoreID=$storeNumber CountryID='GB' CurrencyID='GBP' -i C:\xstore\database\ClientData.sql -o $global:scriptLoggingPath\$runid-SQLChangeStoreNumberOutput.log";
+    }else{
+        Write-Log -type 'warn' -msg "Store number change not requested ($global:storeNumberChange), no changes have been made."
+    }
+}
+#Function to invoke park retail ID change based on xml file. 
+function invoke-pridChange {
+    param(
+        [Parameter(Mandatory=$true)][int]$storeNumber
+    )
 
-        #Park Retail Modifications at Peters Request.
-        if($pridcnreq -ilike "*y*"){
-            Write-Log " : Reading in Park Retail Store to ID map from $pridmaploc."
-            $pridmap = [xml](get-content -Path $pridmaploc); 
-            $correctmap = $pridmap.prids.store | Where-Object {$_.storenum -ieq "$newstorenum"  }
-                if($null -eq $correctmap -or $correctmap -eq ''){
-                    Write-Log " : WARNING: Correct map for new store number $newstorenum cannot be found in $pridmaploc, check data is correct. NO CHANGES WILL BE MADE."
-                }else{
-                    foreach($ociusprop in (Get-ChildItem -Path $eftlinkdir -Recurse | Where-Object {$_.Name -ilike "ocius.properties"})){
-                        $ocifilepath = $ociusprop.FullName
-                        Write-Log " : Reading in ocius.properties file from $ocifilepath."
-                        $ociusfilecont = Get-Content $ociusprop.FullName
-                            $correctlinenum = 0
-                            foreach($line in $ociusfilecont){
-                                $correctlinenum += 1
-                                if($line -ilike "flexecash.account.id*"){
-                                    Write-Log " : Flexecash ID field found on line:$correctlinenum, sanitising field."
-                                    $line = $line.Trim()
-                                    $line = $line -replace ' ',''
-                                    $global:currentprid = $line.split('=')[1]
-                                    $global:newprid = $correctmap.storeprid
-                                    Write-Log " : Current value of $currentprid will be replaced with $newprid."
-                                    $line = $line -ireplace "$currentprid","$newprid"
-                                    $line = $line -ireplace "=", " = "
-                                        $ociusfilecont[$correctlinenum -1] = $line
-                                        Write-Log " : Saving out buffer to $ocifilepath, replacing old content."
-                                        $ociusfilecont | Set-Content -Path $ociusprop.FullName
-                                }
-                                    
+    if($global:parkRetailchange -eq $true){
+        $pridmap = [xml](get-content -Path $global:parkRetailMap); 
+        $correctMap = $pridmap.prids.store | Where-Object {$_.storenum -ieq $storeNumber};
+
+        if($null -eq $correctMap -or $correctMap -eq ''){
+            Write-Log -type 'warn' -msg "Correct map for new store number $newStoreNum cannot be found in $global:parkRetailMap, check data is correct, no changes have been made."
+        }else{
+            foreach($ociusPropFile in (Get-ChildItem -Path $global:pedsEftlinkPath -Recurse | Where-Object {$_.Name -ilike 'ocius.properties'})){
+                invoke-propertyFileValueChange -configFileLocation $ociusPropFile.FullName -changeValueTo $correctMap.storeprid -lineMask 'flexecash.account.id'
+            }
+        }
+    }else{
+        Write-Log -type 'warn' -msg "Park retail change not requested ($global:parkRetailchange), no changes have been made."
+    }
+}
+#Function to add default scheduled tasks.
+Function invoke-addDefaultSchedTasks {
+   
+# Task Definitions
+$defaultSchedTasks = @(
+    @{
+        Name = "$global:brandName-WindowsUpdateController"
+        Desc = 'Will run a script that will update Windows if the host name is in a shared txt file on the sdrive.'
+        Action = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -File "auto-windows-update-v20.ps1"' -WorkingDirectory "C:\$global:brandName\Scripts\"
+        Trigger = New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek Tuesday -At 9:30PM
+        Condition = { $true } # Always run
+    },
+    @{
+        Name = "$global:brandName-XstoreDatabaseBackup"
+        Desc = 'Will run a script that will backup the store database to head office.'
+        Action = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -File "backup-xstore-db.ps1"' -WorkingDirectory "C:\$global:brandName\Scripts"
+        Trigger = New-ScheduledTaskTrigger -Daily -At ("{0:D2}:{1:D2}" -f (Get-Random -Minimum 2 -Maximum 4), (Get-Random -Minimum 1 -Maximum 59))
+        Condition = { Test-Path "C:\$brand\Scripts\backup-xstore-db.ps1" }
+    },
+    @{
+        Name = "$global:brandName-XstoreRestart"
+        Desc = 'Will run a script that will restart the xstore system.'
+        Action = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -File "xstore-shutdown-restart.ps1"' -WorkingDirectory "C:\$global:brandName\Scripts"
+        Trigger = New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek Monday -At 6am
+        Condition = { $true }
+    },
+    @{
+        Name = "$global:brandName-LaunchXstoreAtLogon"
+        Desc = 'This will launch xStore at logon of any user using the VBS file C:\environment\start_eng.vbs.'
+        Action = New-ScheduledTaskAction -Execute 'Cscript.exe' -Argument 'C:\environment\start_eng.vbs //nologo' -WorkingDirectory 'C:\Windows\System32'
+        Trigger = New-ScheduledTaskTrigger -AtLogOn
+        Condition = { $true }
+    },
+    @{
+        Name = "$global:brandName-ScriptUpdater"
+        Desc = "This script will update all other scripts within the $brand scripts folder."
+        Action = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -File "xStore-ScriptUpdater.ps1"' -WorkingDirectory "C:\$brand"
+        Trigger = New-ScheduledTaskTrigger -Daily -At 7am
+        Condition = { $true }
+    }
+)
+
+    # Register all tasks
+    foreach ($task in $defaultSchedTasks){
+        if(& $task.Condition){
+            Write-Log -type 'General' -msg "Adding task [$($task.Name)]"
+            Register-ScheduledTask -Action $task.Action -Trigger $task.Trigger -TaskName $task.Name -Description $task.Desc -TaskPath "$global:brandName" -RunLevel Highest -Force
+        }else{
+            Write-Log -type 'warn' -msg "Skipping task [$($task.Name)] due to condition not met."
+        }
+    }
+
+    # Verify tasks
+    Start-Sleep -Seconds 5
+    foreach ($task in $defaultSchedTasks) {
+        if ((Get-ScheduledTask -TaskName *).TaskName -icontains $task.Name) {
+            Write-Log -type 'success' -msg "$($task.Name) successfully added."
+        }
+        else {
+            Write-Log -type 'error' -msg "$($task.Name) was not added."
+            write-ErrorObjectForLater -functionName 'invoke-addDefaultSchedTasks' -cause "When the script tried to confim that the task was added to the system the task could not be found. Please check $($task.Name) manually." -errorMessage "$($task.Name) was not added.";
+        }
+    }
+}
+#Add configured groups to local database db administrators
+Function invoke-denbyDBAdminToLocalDBRemoteUsers {
+    If(((Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count) -gt 0){
+        Foreach($dbName in $global:xstoreDatabaseSqlAdminGroupNames){
+
+# SQL commands to add the user to the SQL server and database roles.
+$xstoreAdminActionsSql = @"
+    USE [master]
+    GO
+    CREATE LOGIN [$dbName] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+    GO
+    ALTER SERVER ROLE [sysadmin] ADD MEMBER [$dbName]
+    GO
+    USE [xstore]
+    GO
+    CREATE USER [$dbName] FOR LOGIN [$dbName]
+    GO
+    USE [xstore]
+    GO
+    ALTER ROLE [db_owner] ADD MEMBER [$dbName]
+    GO
+"@;
+
+# Get list of database admins allready in the database.
+$adminTestSql = @"
+select sp.name as login,
+       sp.type_desc as login_type,
+       case when sp.is_disabled = 1 then 'Disabled'
+            else 'Enabled' end as status
+from sys.server_principals sp
+left join sys.sql_logins sl
+          on sp.principal_id = sl.principal_id
+where sp.type not in ('R','C')
+order by sp.name;
+"@
+
+                    if(((Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $adminTestSql).login) -icontains $dbName){
+                        Write-Log -msg 'warn' -msg "SQL server allready contains $dbName, doing nothing."
+                    }else{
+                        Write-Log -msg 'info' -msg "Detected SQL server running, adding $dbName to remote users."
+                        Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $xstoreAdminActionsSql | out-null
+                        Start-Sleep -Seconds 20
+                            if(((Invoke-Sqlcmd -U 'sa' -P $global:xstoreDatabaseUserSaPassword -Query $adminTestSql).login) -icontains $dbName){
+                                Write-Log -msg 'success' -msg "Confirming that $dbName has been added to the users that can logon remotely."
+                                return $true;
+                            }else{
+                                Write-Log -msg 'error' -msg "$dbName has not been added to the database."
+                                return $false;
                             }
                     }
-                    Write-Log " : Park Retail modifications that have been requested are now complete."
-                }
-        }else{
-            Write-Log " : Park retail change not requested ($pridcnreq). No changes being made."
-        }
+            }
+    }else{
+        Write-Log -type 'error' -msg "Cannot detect running SQL server, server process count is $sqlServerRunningCnt."
+        return $false;
+    }
 }
+#Function to invoke PED IP Change. 
+Function invoke-pedIpChange {
+    if($global:amountOfPeds -gt '0' -and $global:changePedsConfiguration -eq $true){
 
-#Add Schedualed Tasks
-Function add-sched-tasks {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ADDING SCHEDUALED TASKS <<<"
-Write-Log "   "
-    
-    # Windows Update Management
-    $taskName1 = "$brand`WindowsUpdateController"
-    $taskDesc1 = 'Will run a script that will update windows if the host name is in a shared txt file on the sdrive.'
-    $action1 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "auto-windows-update-v20.ps1"' -WorkingDirectory "C:\$brand\Scripts\"
-    $trigger1 =  New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek Tuesday -At 9:30PM
-
-    #Database Backup Script only on v20 Servers
-    $backupTimeHr= '{0:d2}' -f (Get-Random -Minimum 2 -Maximum 4)
-    $backupTimeMM= '{0:d2}' -f (Get-Random -Minimum 1 -Maximum 59)
-    $backupTime = [string]$backupTimeHr + ":" + [string]$backupTimeMM
-    $taskName2 = "$brand`XstoreDatabaseBackup"
-    $taskDesc2 = 'Will run a script that will backup the store database to headoffice.'
-    $action2 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "backup-xstore-db.ps1"' -WorkingDirectory "C:\$brand\Scripts"
-    $trigger2 =  New-ScheduledTaskTrigger -Daily -At $backupTime
-
-    #xStore Restart
-    $taskName3 = "$brand`XstoreRestart"
-    $taskDesc3 = 'Will run a script that will restart the xstore system.'
-    $action3 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xstore-shutdown-restart.ps1"' -WorkingDirectory "C:\$brand\Scripts"
-    $trigger3 =  New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek monday -At 6am
-
-    #Launch xStore at Logon.
-    $taskName4 = "$brand`LaunchXstoreAtLogon"
-    $taskDesc4 = 'This will launch xStore at logon of any user using the VBS file C:\environment\start_eng.vbs.'
-    $action4 = New-ScheduledTaskAction -Execute 'Cscript.exe' -Argument 'C:\environment\start_eng.vbs //nologo' -WorkingDirectory 'C:\Windows\System32'
-    $trigger4 =  New-ScheduledTaskTrigger -AtLogOn
-
-    #Update the scripts at 7am every day.
-    $taskName5 = "$brand`ScriptUpdater"
-    $taskDesc5 = "This script will update all other scripts within the $brand scripts folder."
-    $action5 = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument '-ExecutionPolicy Bypass -file "xStore-ScriptUpdater.ps1"' -WorkingDirectory "C:\$brand"
-    $trigger5 =  New-ScheduledTaskTrigger -Daily -At 7am 
-
-    $tasks = @("$taskName1","$taskName2", "$taskName3", "$taskName4", "$taskName5")
-    
-    #add tasks
-    Write-Log ' : Adding Windows Updater to Sched Tasks.'
-    Register-ScheduledTask -Action $action1 -Trigger $trigger1 -TaskName $taskName1 -Description $taskDesc1 -TaskPath "$brand" -RunLevel Highest -Force
-
-        #test to see if the host is a instore server.
-        if(test-path -Path "C:\$brand\Scripts\backup-xstore-db.ps1"){
-            Write-Log ' : Adding DB Backup to Sched Tasks.'
-            Register-ScheduledTask -Action $action2 -Trigger $trigger2 -TaskName $taskName2 -Description $taskDesc2 -TaskPath "$brand" -RunLevel Highest -Force
-        }else{
-            write-Log " : This does not seem to be a server, not adding DB Backup Script to Schedualed Tasks"
+        foreach($ociusPropFile in 1..$global:amountOfPeds){
+            $ociusPropFilePath = "$global:pedsEftlinkPath\server$ociusPropFile\ocius.properties"
+            $correctPedIpAddress = $(Get-Variable -Name ("pedsIpAddress"+$ociusPropFile) -ValueOnly)
+            if([System.Net.IPAddress]::TryParse($correctPedIpAddress, [ref]$null)){
+                invoke-propertyFileValueChange -configFileLocation $ociusPropFilePath -changeValueTo $correctPedIpAddress -lineMask 'ip.address'
+            }else{
+                write-log -type 'error' -msg "$correctPedIpAddress does not seem to be an IP addess.";
+                write-ErrorObjectForLater -functionName 'invoke-pedIpChange' -cause "Configured ped Ip of $(Get-Variable -Name ("pedsIpAddress"+$ociusPropFile) -ValueOnly) does not appear to be an acutal IP. Check the config file." -errorMessage "$correctPedIpAddress does not seem to be an IP addess";
+            }
         }
 
-    Write-Log ' : Adding restarter to Sched Tasks.'
-    Register-ScheduledTask -Action $action3 -Trigger $trigger3 -TaskName $taskName3 -Description $taskDesc3 -TaskPath "$brand" -RunLevel Highest -Force
-
-    Write-Log ' : Adding xStore launch at startup to Sched Tasks.'
-    Register-ScheduledTask -Action $action4 -Trigger $trigger4 -TaskName $taskName4 -Description $taskDesc4 -TaskPath "$brand" -Force
-
-    Write-Log ' : Adding script updater to schedualed tasks.'
-    Register-ScheduledTask -Action $action5 -Trigger $trigger5 -TaskName $taskName5 -Description $taskDesc5 -TaskPath "$brand" -Force
-
-    Start-Sleep -Seconds 20
-        Foreach($task in $tasks){
-            if((Get-ScheduledTask -TaskName *).TaskName -icontains $task){
-                Write-Host " : $task has been successfully added to schedualed tasks."
-                }else{
-                Write-Host " : ERROR, $task has not been added to schedualed tasks."
-                }
-        }
-}
-
-#Enable Auto Logon
-Function set-AutoLogon {
-    Write-Log "   "
-    Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SETTING AUTO LOGON <<<"
-    Write-Log "   "
-
-        #Get the domain name and convert to upper case.
-        $domain = (((Get-CIMInstance CIM_ComputerSystem).domain).split('.')[0]).ToUpper()
-
-        Write-Log " : Writing the correct keys to the registry, using UNAME:$domain\$env:USERNAME & PASS:$autologonpass."
-
-        #write the values, 
-        $RegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
-            Set-ItemProperty $RegistryPath 'AutoAdminLogon' -Value "1" -Type String -Force
-            Set-ItemProperty $RegistryPath 'DefaultUsername' -Value "$domain\$env:USERNAME" -type String -Force
-            Set-ItemProperty $RegistryPath 'DefaultPassword' -Value "$autologonpass" -type String -Force
-    
-            $regvalue = Get-ItemProperty -Path $RegistryPath
-            $AUsuccess = '0'
-    
-            if($regvalue.DefaultPassword -ieq $autologonpass){
-                $AUsuccess += 1
-                Write-Log " : Success, auto-logon password has been written to the registry."
-            }else{
-                Write-Log " : ERROR, auto-logon password is not in the registry at $RegistryPath."
-            }
-    
-            if($regvalue.DefaultUserName -ieq "$domain\$env:USERNAME"){
-                $AUsuccess += 1
-                Write-Log " : Success, auto-logon username and correct domain have been written to the registry."
-            }else{
-                Write-Log " : ERROR, auto-logon username or domain is not in the registry at $RegistryPath."
-            }
-    
-            if($regvalue.AutoAdminLogon -ieq '1'){
-                $AUsuccess += 1
-                Write-Log " : Success, auto-logon has been enabled."
-            }else{
-                Write-Log " : ERROR, auto-logon has not been enabled."
-            }
-
-            #attempting to set up autologn with autologon64.exe
-            Start-Process -FilePath "C:\$brand\Autologon64.exe" -ArgumentList "/accepteula", $env:USERNAME, $domain, $autologonpass -wait
-    
-}
-
-#Add users to db administrators
-Function add-dbadmin-to-sql {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SETTING $brand AS SQL ADMIN <<<"
-Write-Log "   "
-
-    $sqlserversrunning = (Get-Process | Where-Object {$_.Name -ilike "*sqlserv*"}).count
-    Push-Location
-
-    If($sqlserversrunning -gt '0'){
-        $sqladminspre = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
-            if($sqladminspre -icontains "$dbAdminDomain\$dbAdminGroup"){
-                Pop-Location
-                Write-Log " : WARN, SQL server allready contains $dbAdminDomain\$dbAdminGroup, doing nothing."
-            }else{
-                    Write-Log " : Detected SQL server running, adding $dbAdminDomain\$dbAdminGroup to remote users."
-                    Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -Query $xstoreAdminActions | out-null
-                    Pop-Location
-                    Start-Sleep -Seconds 20
-                    $sqladminspost = (Invoke-Sqlcmd -U $dbAdminUserName -P $dbAdminUserPass -InputFile ".\dependencies\sql\admintest.sql").login
-                            if($sqladminspost -icontains "$dbAdminDomain\$dbAdminGroup"){
-                                Pop-Location
-                                Write-Log " : Confirming that $dbAdminGroup has been added to the users that can logon remotely."
-                            }else{
-                                Pop-Location
-                                Write-Log " : ERROR, $dbAdminDomain\$dbAdminGroup has not been added to the database."
-                            }
-            }
-        }else{
-        Write-Log " : Error, cannot detect running SQL server, server process count is $sqlserversrunning."
-        }
-}
-
-#Copy Updated Ocius.Keystore Files if requested.
-Function Copy-OciusKS {
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Copying over Correct Ocius.keystore. <<<"
-Write-Log "   "
-
-    $sourcehash = (Get-FileHash ".\dependencies\ssl\ocius.keystore" -Algorithm SHA512).Hash
-    $locationsOfKS = @('C:\eftlink\data\ocius.keystore','C:\eftlink\server1\data\ocius.keystore','C:\eftlink\server2\data\ocius.keystore','C:\eftlink\server3\data\ocius.keystore','C:\eftlink\server4\data\ocius.keystore','C:\eftlink\server5\data\ocius.keystore')
-
-    foreach($key in $locationsOfKS){
-
-            if(Test-Path -Path $key){
-
-                    Write-Log " : $key copy prerequisites satisfied."
-
-                            #Backup Current Keystores. 
-                            Write-Log " : Attempting rename of $loc to act as a backup."
-                            Rename-Item -Path $key -NewName "ocius.keystore.original.$runid" -Force
-                            if(Test-Path -Path "$key.original.$runid"){
-                                    Write-Log " : SUCCESS - Backup of $key detected."
-
-                                    write-log " : Copying .\dependencies\ssl\ocius.keystore to $key"
-                                    copy-item -Path ".\dependencies\ssl\ocius.keystore" -Destination $key -Force
-                                    $KSCopyHash = (Get-FileHash -Path $key -Algorithm SHA512).Hash
-
-                                        if($sourcehash -ne $KSCopyHash){
-                                            Write-Log " : ERROR - Copy of ocius.keystore to $key has failed, CRC Error."
-                                        }else{
-                                            Write-Log " : Copy of ocius.keystore to $key is good. CRC is Good."
-                                        }
-
-                                }else{
-                                    Write-Log " : ERROR - Backup of $key failed."
-                                }
-
-            }else{
-                Write-Log " : ERROR - $_ copy prerequisites fail, cannot find keystore."
-            }
-
+    }else{
+        Write-Log -type 'warn' -msg "There are ($global:amountOfPeds) peds in this store, no configuration is required or Ped change is not configured ($global:changePedsConfiguration)."
     }
 }
 
-#Change the store brand.
-Function Get-BrandChange {
+#Read in the script config file.
+Get-ConfigFile -configFileLocation ".\.env";
+#This is for file naming for the logs.
+$logFileDate = (get-date -Format "dd.MM.yy-HH.mm.ss");
+#Generate a random id to track a single run of the script.
+$runID = (-join ((65..90) + (97..122) | Get-Random -Count 10 | ForEach-Object {[char]$_}));
+#this is for the run time calulation
+$startTime = (get-date -Format "HH:mm:ss");
 
-Write-Log "   "
-Write-Log " : ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Changing Store Brand. <<<"
-Write-Log "   "
+#-------------------------------------------------------------------------------------------------------------------
 
-                #-------------- Xstore-Base config Path --------------#
-                $confpathbasedir = ([string]$xstorebaseconfigloc -ireplace 'base-xstore.properties', '').TrimEnd('\')
-                #backingup configpath file original
-                Write-log " : Backing up base-xstore.properties to $confpathbasedir\base-xstore.properties.cnfedit.bak.BRAND.$runid"
-                Copy-Item -Path $xstorebaseconfigloc -Destination "$confpathbasedir\base-xstore.properties.cnfedit.bak.BRAND.$runid" -Force
+Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$vgpScriptVerson) Start run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
 
-                if($changeBrand -ilike "*y"){
-                
-                    Write-log " : Configuring xstore-baseconfig configuration path for brand change to $brand."
-                    $confpathcont = Get-Content -Path $xstorebaseconfigloc   
-                        
-                    $ai = 0
-                        foreach($line in $confpathcont){
-                            $ai += 1
-                            if($line -ilike "xstore.config.path.global.extensions*"){
-                                Write-log " : Line($ai) is holding the config.path.global.extensions."
-                                    $arrno = 0
-                                            $linearr = @($line.Split(':'))
-                                                foreach($seg in $linearr){
-                                                    $arrno += 1
-                                                            if($seg -ilike "brand/*"){
-                                                                Write-log " : Replacing $seg with $brand."
-                                                                $brand = $brand.Trim()
-                                                                $brand = $brand.ToLower()
-                                                                $seg = ""
-                                                                $seg = "brand/$brand"
+Set-PathVariable -AddPath "C:\Program Files\Java\jdk-$global:xstoreRequiredJdkVersion\bin" -Scope Machine;
+Set-SQLRemoteAccessFirewallRule;
+invoke-AutoLogon;
+invoke-storeNumberChange;
+invoke-pridChange;
+invoke-denbyDBAdminToLocalDBRemoteUsers;
+invoke-pedIpChange;
 
-                                                                $linearr[$arrno -1] = $seg
-                                                                $line = [string]$linearr -replace " ", ':'
-
-                                                                Write-log " : ($line) will now be written to config file."
-                                                                $confpathcont[$ai -1] = $line
-                                                                $confpathcont | Set-Content $xstorebaseconfigloc
-                                                            }
-                                                }
-                            }
-                        }
-
-                        #Edit Mobile Line
-                        $confpathcont = Get-Content -Path $xstorebaseconfigloc  
-                        $ai = 0
-                        foreach($line in $confpathcont){
-                            $ai += 1
-                            if($line -ilike "mobile.xstore.config.path.global.extensions*"){
-                                Write-log " : Line($ai) is holding the mobile.config.path.global.extensions."
-                                    $arrno = 0
-                                            $linearr = @($line.Split(':'))
-                                                foreach($seg in $linearr){
-                                                    $arrno += 1
-                                                            if($seg -ilike "brand/*"){
-                                                                Write-log " : Replacing $seg with $brand."
-                                                                $brand = $brand.Trim()
-                                                                $brand = $brand.ToLower()
-                                                                $seg = ""
-                                                                $seg = "brand/$brand"
-
-                                                                $linearr[$arrno -1] = $seg
-                                                                $line = [string]$linearr -replace " ", ':'
-
-                                                                Write-log " : ($line) will now be written to config file"
-                                                                $confpathcont[$ai -1] = $line
-                                                                $confpathcont | Set-Content $xstorebaseconfigloc
-                                                            }
-                                                }
-                            }
-                        }
-
-                                            # Setting Brand Receipt Emails
-                                            Write-log " : Changing email receipt addresses to $brandRcptEml."
-                                            
-                                            # Edit receipt email address sender
-                                            $confpathcont = Get-Content -Path $xstorebaseconfigloc  
-                                            $ai = 0
-                                            foreach($line in $confpathcont){
-                                                $ai += 1
-                                                if($line -ilike "dtv.email.default.sender*"){
-                                                    Write-log " : Line($ai) is holding the dtv.email.default.sender."
-                                                        $arrno = 0
-                                                                $linearr = @($line.Split('='))
-                                                                    foreach($seg in $linearr){
-                                                                        $arrno += 1
-                                                                                if($seg -ilike "*@*"){
-                                                                                    Write-log " : Replacing $seg with $brandRcptEml."
-                                                                                    $brandRcptEml = $brandRcptEml.Trim()
-                                                                                    $seg = ""
-                                                                                    $seg = $brandRcptEml
-                        
-                                                                                    $linearr[$arrno -1] = $seg
-                                                                                    $line = [string]$linearr -replace " ", '='
-                        
-                                                                                    Write-log " : ($line) will now be written to config file."
-                                                                                    $confpathcont[$ai -1] = $line
-                                                                                    $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                                }
-                                                                    }
-                                                }
-                                            }
-
-                                            # Edit receipt email address from
-                                            $confpathcont = Get-Content -Path $xstorebaseconfigloc  
-                                            $ai = 0
-                                            foreach($line in $confpathcont){
-                                                $ai += 1
-                                                if($line -ilike "dtv.email.receipt.from*"){
-                                                    Write-log " : Line($ai) is holding the dtv.email.receipt.from."
-                                                        $arrno = 0
-                                                                $linearr = @($line.Split('='))
-                                                                    foreach($seg in $linearr){
-                                                                        $arrno += 1
-                                                                                if($seg -ilike "*@*"){
-                                                                                    Write-log " : Replacing $seg with $brandRcptEml."
-                                                                                    $brandRcptEml = $brandRcptEml.Trim()
-                                                                                    $seg = ""
-                                                                                    $seg = $brandRcptEml
-                        
-                                                                                    $linearr[$arrno -1] = $seg
-                                                                                    $line = [string]$linearr -replace " ", '='
-                        
-                                                                                    Write-log " : ($line) will now be written to config file."
-                                                                                    $confpathcont[$ai -1] = $line
-                                                                                    $confpathcont | Set-Content $xstorebaseconfigloc
-                                                                                }
-                                                                    }
-                                                }
-                                            }
-                                    }
+if($global:changePrintingConfiguration -eq $true){
+    #Set the reconfigured config path.
+    switch ($global:printingIsType) {
+        'usb' { set-reconfiguredConfigPath -Brand $global:brandName -hardwarePath "terminal"; }
+        'ip' { set-reconfiguredConfigPath -Brand $global:brandName -hardwarePath "terminalip"; invoke-ipPrinterConfiguration -printerName $global:printingIPJposName -printerIPAddress $global:printingIpAddress ; update-epsonEphemeralPortConfiguration;}
+        'ipcashdrawer' { set-reconfiguredConfigPath -Brand $global:brandName -hardwarePath "terminalipcashdrawer"; invoke-ipPrinterConfiguration -printerName $global:printingIPCashJposName -printerIPAddress $global:printingIpAddress ; update-epsonEphemeralPortConfiguration;}
+    }
 }
 
-# Start --------------------------------------------------------------------------------------------------------|
+invoke-xStoreConfigurationBats;
+invoke-addDefaultSchedTasks;
 
-$runyn = $(Write-Host "Are you sure you would like to run xstore in store staging? " -NoNewLine)  + $(Write-Host "Please check and EDIT the stage-2-var.xml before running!!!" -ForegroundColor Red) + $(Write-Host "Enter Y or N : " -ForegroundColor yellow -NoNewLine; Read-Host)
+write-log -type 'general' -msg "File Backups Commited During Script Execution:"
+$global:fileBackups | Format-Table -AutoSize | out-file $global:scriptLoggingPath -append;
+write-log -type 'general' -msg "This Runs Configuration Was:"
+$global:scriptConfiguration | Format-Table -AutoSize | out-file $global:scriptLoggingPath -append;
+write-log -type 'general' -msg "Errors During Operation Were:"
+$global:scriptErrorObject | Format-Table -AutoSize | out-file $global:scriptLoggingPath -append;
 
-if($runyn -eq "y"){ Write-Log " : Yes to start received."
+write-log -type 'general' -msg "Process has finished, the script took $((New-TimeSpan -Start $startTime -End $((get-date -Format "HH:mm:ss"))).Minutes) minutes and $((New-TimeSpan -Start $startTime -End $endTime).Seconds) seconds.";
+Write-Log -type "general" -msg " ------------- (RUNID: $runID Ver:$vgpScriptVerson) End run at $(get-date -format "dd.MM.yy - HH:mm:ss") running on $env:computername ------------- "
 
+"Disposing of all Variables for next run"
+Get-Variable -Exclude PWD,*Preference | Remove-Variable -EA 0;
 
-    Write-Log " ------------ Starting RUN, ID:$runid ------------ "
-
-    #Startup Bits for all runs.
-    Set-DScript-DIRs
-    close-xstore
-    get-Snapshot
-    Set-JDK-to-Path
-    Get-Epson-Ephemeral-Port
-
-    #de-compile the Jar file.
-    Test-Xstore-print-Req
-
-    if($isprintserver -ilike "Y*"){ Write-Log " : This run is a print server - Response ($isprintserver)."
-
-        Add-Print-Server-Xstore      
-    
-    }Else{ Write-Log " : Is not a print server - Response ($isprintserver)." }
-
-    if($ipreceptprtreq -ilike "Y*"){ Write-Log " : This store contains IP Printers - Response ($ipreceptprtreq)."
-
-        Set-IP-Recept-Printer
-
-    }Else{ Write-Log " : Not a store with an IP printer - Response ($ipreceptprtreq)." }
-
-    if($printclient -ilike "Y*"){ Write-Log " : This run is a print share client - Response ($printclient)."
-
-        Add-Printer-Share-Client      
-    
-    }Else{ Write-Log " : Not a print share client - Response ($printclient)." }
-
-    if($isbogstandard -ilike "Y*"){ Write-Log " : This run is bog standard usb attached printer, not shared - Response ($isbogstandard)."
-
-        set-standard-usb-setup      
-    
-    }Else { Write-Log " : Not a bog standard USB Printer Store - Response ($isbogstandard)." }
-
-    if($pednum -ne "0"){ Write-Log " : This store has $pednum ped(s) - Response ($pednum)."
-
-        Set-Ped-IP
-    
-    }Else { Write-Log " : Store has no Peds - Response ($pednum)." }
-
-    if($changestnum -ilike "Y*"){ Write-Log " : Change of store number requested, ($changestnum)."
-    
-        set-store-number
-
-    }else{ Write-Log " : Change of store numbers was not requested. ($changestnum)" }
-
-    if($enableautologon -ilike "Y*"){ Write-Log " : Auto logon requested. ($enableautologon)."
-
-        set-AutoLogon
-
-    }else{ Write-Log " : Auto logon was not requested. ($enableautologon)." }
-
-    if($updateOcKs -ilike "Y*"){
-
-        Copy-OciusKS
-
-    }else{ Write-Log " : Ocius.keystore replacement not requested. ($updateOcKs)."}
-
-    #Final Bits for all runs
-    Get-BrandChange
-    Set-Remote-SQL-FWR
-    add-dbadmin-to-sql
-    Invoke-Repack-Config-Jar
-    Invoke-Cleanup
-    Set-xstore-final
-    add-sched-tasks
-
-    Write-Log " ------------ END RUN, ID:$runid ------------ "
-
-}else{ 
-    Write-Log " : $runyn recived, exiting"
-    Exit 1
-}
-
-"Desposing of all Variables for next run"
-Get-Variable -Exclude PWD,*Preference | Remove-Variable -EA 0
-
-Exit 0
-
-
+exit 0;

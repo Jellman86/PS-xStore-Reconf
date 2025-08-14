@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Hardware xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="HardwareConfig.xsd">
+  <PlaySounds dtype="Boolean">true</PlaySounds>
+  <ForceDrawerClose dtype="Boolean">true</ForceDrawerClose>
+  <ShowPrinterDialog dtype="Boolean">false</ShowPrinterDialog>
+  <PrintTargetFromRemote dtype="String">RECEIPT</PrintTargetFromRemote>
+ 
+  <Device type="POSPrinter" use="RECEIPT">
+     <name dtype="String">Epson-TM88V-Printer-USB</name>
+	 <dtvClaimOnDemand dtype="Boolean">true</dtvClaimOnDemand> 
+  </Device>
+  
+  <Device type="POSPrinter" use="VALIDATION">
+     <name dtype="String">Epson-TM88V-Printer-USB</name>
+	 <dtvClaimOnDemand dtype="Boolean">true</dtvClaimOnDemand> 
+  </Device>
+  
+</Hardware>

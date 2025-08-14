@@ -1,16 +1,19 @@
 #Sensitive Files
 .env
-.keystore
-.cer
-.crt
-.pfx
-.jks
-.log
+*.env
+*.keystore
+*.cer
+*.crt
+*.pfx
+*.jks
+*.log
 
 #Specific Secrets
 prid_map.xml
 ocius.keystore
 env.xml
+XstoreSQLAdmins.sql
+stage-2-var.xml
 
 #Paths
 **/ssl

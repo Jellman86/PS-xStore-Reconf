@@ -1,0 +1,19 @@
+<xmlroot>
+<type value="ESDPRT002">
+<property id="PortType" valuetype="number" value="4"/>
+<property id="DeviceType" valuetype="number" value="0"/>
+<property id="PortName" valuetype="string" value="${ipprinter}"/>
+<custom id="TM.PrinterID.68" valuetype="string" value="X9XW023192"/>
+<custom id="TM.PrinterID.2" valuetype="number" value="2"/>
+<custom id="TM.PrinterID.33" valuetype="binary" value="QkAAAA=="/>
+<custom id="TM.PrinterID.65" valuetype="string" value="60.04 ESC/POS"/>
+<custom id="TM.PrinterID.67" valuetype="string" value="TM-T88VII"/>
+</type>
+<type value="ESDPRT001">
+<property id="PortType" valuetype="number" value="3"/>
+<property id="DeviceID" valuetype="number" value="32"/>
+<property id="ModelName" valuetype="string" value="TM-T88VII"/>
+<property id="PortName" valuetype="string" value="\\?\USB#VID_04B8&amp;PID_0202#583958560006880000#{5dd901c0-bcf4-11d1-9738-008029e6a5b3}"/>
+<property id="DeviceType" valuetype="number" value="0"/>
+</type>
+</xmlroot>
